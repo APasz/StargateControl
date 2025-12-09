@@ -240,6 +240,12 @@ function U.clear_lines(count, start_line)
     end
 end
 
+function U.clear_all_lines()
+    local _, h = U.get_monitor_size()
+    U.clear_lines(h, 1)
+    U.reset_line_offset()
+end
+
 function U.update_line(text, line, log_text)
     line = (line or 1) + line_offset
     text = text or ""
