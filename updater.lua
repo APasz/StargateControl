@@ -21,7 +21,7 @@ if not fs.exists(target_dir) or not fs.isDir(target_dir) then
     error("No '" .. target_dir .. "' directory")
 end
 
-local function download_file(name)
+local function download_file(name, destination)
     local url = base_url .. name
     print("Fetching " .. name .. "...")
     local res, err = http.get(url)
@@ -33,7 +33,7 @@ local function download_file(name)
     local content = res.readAll()
     res.close()
 
-    local path = fs.combine(target_dir, name)
+    local path = destination or fs.combine(target_dir, name)
     local f = fs.open(path, "w")
     if not f then
         print("  Failed to open " .. path .. " for writing.")
@@ -49,5 +49,7 @@ end
 for _, name in ipairs(files) do
     download_file(name)
 end
+
+download_file("updater.lua", "updater.lua")
 
 print("Done!")
