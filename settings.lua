@@ -8,5 +8,6 @@ return {
         { name = "Abydos", address = { 26, 6, 14, 31, 11, 29, 0 } },
         { name = "Nether", address = { 27, 23, 4, 34, 12, 28, 0 } },
         { name = "End", address = { 9, 2, 1, 31, 34, 29, 16, 24, 0 } },
+        { name = "Mars", address = { 32, 10, 19, 20, 17, 2, 24, 21, 0} },
     },
 }
