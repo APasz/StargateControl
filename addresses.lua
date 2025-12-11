@@ -5,5 +5,5 @@ return {
     { name = "Nether", address = { 27, 23, 4, 34, 12, 28, 0 } },
     { name = "End", address = { 9, 2, 1, 31, 34, 29, 16, 24, 0 } },
     { name = "Mars", address = { 32, 10, 19, 20, 17, 2, 24, 21, 0 } },
-    { name = "Vermilion", address = { 13, 3, 17, 2, 14, 21, 32, 1, 0 }, only_from = { "Earth" } },
+    { name = "Vermilion", address = { 13, 3, 17, 2, 14, 21, 32, 1, 0 }, only_from = { "Earth" }, hide_on = { "Earth" } },
 }
