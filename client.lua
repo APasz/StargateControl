@@ -14,24 +14,16 @@ local function is_wireless_modem(side)
 end
 
 local function ensure_modem_open(preferred_side)
-    if is_wireless_modem(preferred_side) then
-        rednet.open(preferred_side)
-        if rednet.isOpen(preferred_side) then
-            return preferred_side
-        end
+    if not is_wireless_modem(preferred_side) then
+        error(("No wireless/ender modem found on %s; update PREFERRED_MODEM_SIDE"):format(preferred_side or "<unspecified>"), 0)
     end
 
-    local _, detected_side = peripheral.find("modem", function(_, obj)
-        return obj.isWireless and obj.isWireless()
-    end)
-    if detected_side then
-        rednet.open(detected_side)
-        if rednet.isOpen(detected_side) then
-            return detected_side
-        end
+    rednet.open(preferred_side)
+    if rednet.isOpen(preferred_side) then
+        return preferred_side
     end
 
-    error("No wireless/ender modem found; attach a wireless or ender modem", 0)
+    error(("Failed to open modem on %s"):format(preferred_side), 0)
 end
 
 ensure_modem_open(PREFERRED_MODEM_SIDE)
