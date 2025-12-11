@@ -38,6 +38,7 @@ local function get_site(override)
     end
 
     local label = os.getComputerLabel() or ""
+    local label_lower = string.lower(label)
     local candidates = {
         label:match("DialingPC[_%s%-]+(.+)"),
         label:match("Dialing%s*PC[_%s%-]+(.+)"),
@@ -45,6 +46,12 @@ local function get_site(override)
         label:match("DialPC[_%s%-]+(.+)"),
         label:match("Dial%s*PC[_%s%-]+(.+)"),
         label:match("(.+)%s+Dial%s*PC"),
+        label_lower:match("dialingpc[_%s%-]+(.+)"),
+        label_lower:match("dialing%s*pc[_%s%-]+(.+)"),
+        label_lower:match("(.+)%s+dialing%s*pc"),
+        label_lower:match("dialpc[_%s%-]+(.+)"),
+        label_lower:match("dial%s*pc[_%s%-]+(.+)"),
+        label_lower:match("(.+)%s+dial%s*pc"),
         label,
     }
 
