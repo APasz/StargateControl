@@ -10,6 +10,7 @@ local INF_MON
 U.addr_input = nil
 local LINE_OFFSET = 0
 local MON_SIZE = nil
+local WARNED_NO_SITE = false
 local function is_cancelled(cancel_check)
     return cancel_check and cancel_check() == true
 end
@@ -27,7 +28,7 @@ local function normalise_site(name)
     if trimmed == "" then
         return nil
     end
-    return trimmed
+    return string.lower(trimmed)
 end
 
 local function get_site(override)
@@ -53,6 +54,23 @@ local function get_site(override)
             return normalised
         end
     end
+
+    local gate = U.get_inf_gate and U.get_inf_gate(false)
+    if gate then
+        local get_home = gate.getHomeAddress or gate.getGateAddress or gate.getLocalAddress
+        if type(get_home) == "function" then
+            local home = get_home()
+            if U.is_valid_address and U.is_valid_address(home) then
+                local match = U.find_gate_by_address and U.find_gate_by_address(home)
+                if match and match.name then
+                    local normalised = normalise_site(match.name)
+                    if normalised then
+                        return normalised
+                    end
+                end
+            end
+        end
+    end
 end
 
 local function to_set(list)
@@ -68,7 +86,12 @@ end
 
 function U.filtered_addresses(all, site_override)
     local site = get_site(site_override)
-    print("Recognised Site: " .. site)
+    if not site and not WARNED_NO_SITE then
+        WARNED_NO_SITE = true
+        print("Warning: site is unknown; set computer label (e.g. 'DialingPC_Earth') or settings.site")
+    end
+    local display_site = site or "<unknown>"
+    print("Recognised Site: " .. display_site)
     local result = {}
     for _, g in ipairs(all or {}) do
         local hide_list = to_set(g.hide_on)
