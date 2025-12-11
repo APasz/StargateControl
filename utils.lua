@@ -19,21 +19,63 @@ function U.ensure_inf_rs()
     return INF_RS
 end
 
+local function normalize_site(name)
+    if type(name) ~= "string" then
+        return nil
+    end
+    local trimmed = name:gsub("^%s+", ""):gsub("%s+$", "")
+    if trimmed == "" then
+        return nil
+    end
+    return string.lower(trimmed)
+end
+
 local function to_set(list)
     local t = {}
     for _, v in ipairs(list or {}) do
-        t[v] = true
+        local normalized = normalize_site(v)
+        if normalized then
+            t[normalized] = true
+        end
     end
     return t
 end
 
-function U.filtered_addresses(all)
+local function get_site(override)
+    local normalized_override = normalize_site(override)
+    if normalized_override then
+        return normalized_override
+    end
+
     local label = os.getComputerLabel() or ""
-    local site = label:match("DialingPC_(.+)") or label
+    local candidates = {
+        label:match("DialingPC[_%s%-]+(.+)"),
+        label:match("Dialing%s*PC[_%s%-]+(.+)"),
+        label:match("(.+)%s+Dialing%s*PC"),
+        label:match("DialPC[_%s%-]+(.+)"),
+        label:match("Dial%s*PC[_%s%-]+(.+)"),
+        label:match("(.+)%s+Dial%s*PC"),
+        label,
+    }
+
+    for _, candidate in ipairs(candidates) do
+        local normalized = normalize_site(candidate)
+        if normalized then
+            return normalized
+        end
+    end
+end
+
+function U.filtered_addresses(all, site_override)
+    local site = get_site(site_override)
     local result = {}
     for _, g in ipairs(all or {}) do
-        local hide = site and to_set(g.hide_on)[site]
-        local allowed = (not g.only_from) or to_set(g.only_from)[site]
+        local hide_list = to_set(g.hide_on)
+        local allowed_list = to_set(g.only_from)
+        local gate_site = normalize_site(g.name)
+
+        local hide = site and (hide_list[site] or gate_site == site)
+        local allowed = (not g.only_from) or (site and allowed_list[site])
         if not hide and allowed then
             table.insert(result, g)
         end

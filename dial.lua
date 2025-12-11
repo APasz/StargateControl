@@ -1,7 +1,7 @@
 package.path = package.path .. ";disk/?.lua;disk/?/init.lua"
 local SG_UTILS = require("utils")
 local SG_SETTINGS = require("settings")
-local SG_ADDRESSES = SG_UTILS.filtered_addresses(require("addresses"))
+local SG_ADDRESSES = SG_UTILS.filtered_addresses(require("addresses"), SG_SETTINGS.site)
 
 local INF_GATE = SG_UTILS.get_inf_gate(false)
 local INF_RS = SG_UTILS.get_inf_rs()
