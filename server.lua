@@ -8,6 +8,8 @@ local files = {
     utils = { dst = "utils.lua", src = "disk/utils.lua", data = nil },
     addresses = { dst = "addresses.lua", src = "disk/addresses.lua", data = nil },
     settings = { dst = "settings.lua", src = "disk/settings.lua", data = nil },
+    client = { dst = "client.lua", src = "disk/client.lua", data = nil },
+    server = { dst = "server.lua", src = "disk/server.lua", data = nil },
 }
 for _, file in pairs(files) do
     local f = fs.open(file.src, "r")

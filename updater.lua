@@ -12,6 +12,7 @@ local files = {
     "alarm.lua",
     "utils.lua",
     "settings.lua",
+    "addresses.lua",
     "server.lua",
     "client.lua",
     "updater.lua",
