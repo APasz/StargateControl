@@ -2,7 +2,13 @@ package.path = package.path .. ";disk/?.lua;disk/?/init.lua"
 local SG_UTILS = require("utils")
 
 local SETTINGS_PATH = "settings.lua"
-local DEFAULT_SETTINGS_CONTENT = 'return { site = nil, fast_dial_rs_side = "left", incom_alarm_rs_side = nil, timeout = 60 }\n'
+local DEFAULT_SETTINGS_CONTENT = [[return {
+    site = nil,
+    fast_dial_rs_side = "left",
+    incom_alarm_rs_side = nil,
+    timeout = 60,
+}
+]]
 
 local function load_or_create_settings()
     if fs.exists(SETTINGS_PATH) then
