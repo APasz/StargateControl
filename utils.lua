@@ -68,6 +68,7 @@ end
 
 function U.filtered_addresses(all, site_override)
     local site = get_site(site_override)
+    print("Recognised Site: " .. site)
     local result = {}
     for _, g in ipairs(all or {}) do
         local hide_list = to_set(g.hide_on)
