@@ -39,44 +39,17 @@ local function normalise_site(name)
     return string.lower(trimmed)
 end
 
-local function get_site(override)
-    local trimmed_override = trim_site(override)
+local function get_site(site_override)
+    local trimmed_override = trim_site(site_override)
     local normalised_override = trimmed_override and string.lower(trimmed_override)
     if normalised_override then
         return trimmed_override, normalised_override
     end
 
-    local label = os.getComputerLabel() or ""
-    local label_lower = string.lower(label)
-    local candidates = {
-        label:match("DialingPC[_%s%-]+(.+)"),
-        label:match("Dialing%s*PC[_%s%-]+(.+)"),
-        label:match("(.+)%s+Dialing%s*PC"),
-        label:match("DialPC[_%s%-]+(.+)"),
-        label:match("Dial%s*PC[_%s%-]+(.+)"),
-        label:match("(.+)%s+Dial%s*PC"),
-        label_lower:match("dialingpc[_%s%-]+(.+)"),
-        label_lower:match("dialing%s*pc[_%s%-]+(.+)"),
-        label_lower:match("(.+)%s+dialing%s*pc"),
-        label_lower:match("dialpc[_%s%-]+(.+)"),
-        label_lower:match("dial%s*pc[_%s%-]+(.+)"),
-        label_lower:match("(.+)%s+dial%s*pc"),
-        label,
-    }
-
-    for _, candidate in ipairs(candidates) do
-        local trimmed = trim_site(candidate)
-        local normalised = trimmed and string.lower(trimmed)
-        if normalised then
-            return trimmed, normalised
-        end
-    end
-
     local gate = U.get_inf_gate and U.get_inf_gate(false)
     if gate then
-        local get_home = gate.getHomeAddress or gate.getGateAddress or gate.getLocalAddress
-        if type(get_home) == "function" then
-            local home = get_home()
+        if type(gate.getLocalAddress) == "function" then
+            local home = gate.getLocalAddress()
             if U.is_valid_address and U.is_valid_address(home) then
                 local match = U.find_gate_by_address and U.find_gate_by_address(home)
                 if match and match.name then
@@ -106,7 +79,7 @@ function U.filtered_addresses(all, site_override)
     local display_site, site = get_site(site_override)
     if not site and not WARNED_NO_SITE then
         WARNED_NO_SITE = true
-        print("Warning: site is unknown; set computer label (e.g. 'DialingPC_Earth') or settings.site")
+        print("Warning: site is unknown; set settings.site or ensure the gate interface is attached so the home address can be read")
     end
     local display = display_site or site or "<unknown>"
     print("Recognised Site: " .. display)
