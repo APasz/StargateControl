@@ -15,7 +15,7 @@ local function is_cancelled(cancel_check)
 end
 
 function U.ensure_inf_rs()
-    INF_RS = u.get_inf_rs()
+    INF_RS = U.get_inf_rs()
     return INF_RS
 end
 
