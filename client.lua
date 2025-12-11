@@ -1,4 +1,33 @@
-local CONFIG = require("client_config")
+local CONFIG_PATH = "client_config.lua"
+local DEFAULT_CONFIG_CONTENT = 'return { side = "back", primary_file = "dial" }\n'
+
+local function load_or_create_config()
+    if fs.exists(CONFIG_PATH) then
+        local ok, config = pcall(require, "client_config")
+        if ok then
+            return config
+        end
+        error(config, 0)
+    end
+
+    local handle = fs.open(CONFIG_PATH, "w")
+    if not handle then
+        error("Missing client_config.lua and unable to create it", 0)
+    end
+
+    handle.write(DEFAULT_CONFIG_CONTENT)
+    handle.close()
+
+    local ok, config = pcall(require, "client_config")
+    if not ok then
+        error(config, 0)
+    end
+
+    print("Created default client_config.lua; edit it to change modem side/primary file")
+    return config
+end
+
+local CONFIG = load_or_create_config()
 local REQUEST_PROTOCOL = "files_request"
 local REPLY_PROTOCOL = "files_reply"
 local SERVER_NAME = "SGServer"
@@ -14,7 +43,7 @@ end
 
 local function ensure_modem_open(preferred_side)
     if not is_wireless_modem(preferred_side) then
-        error(("No wireless/ender modem found on %s; update PREFERRED_MODEM_SIDE"):format(preferred_side or "<unspecified>"), 0)
+        error(("No wireless/ender modem found on %s; update client_config.side"):format(preferred_side or "<unspecified>"), 0)
     end
 
     rednet.open(preferred_side)
