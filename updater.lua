@@ -15,6 +15,7 @@ local files = {
     "addresses.lua",
     "server.lua",
     "client.lua",
+    "client_config.lua",
     "updater.lua",
 }
 

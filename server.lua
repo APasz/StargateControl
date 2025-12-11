@@ -8,6 +8,7 @@ local FILES = {
     addresses = { dst = "addresses.lua", src = "disk/addresses.lua", data = nil },
     settings = { dst = "settings.lua", src = "disk/settings.lua", data = nil },
     client = { dst = "client.lua", src = "disk/client.lua", data = nil },
+    client_config = { dst = "client_config.lua", src = "disk/client_config.lua", data = nil },
     server = { dst = "server.lua", src = "disk/server.lua", data = nil },
 }
 
