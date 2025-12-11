@@ -42,6 +42,7 @@ end
 local function get_site(site_override)
     local trimmed_override = trim_site(site_override)
     local normalised_override = trimmed_override and string.lower(trimmed_override)
+    
     if normalised_override then
         return trimmed_override, normalised_override
     end
