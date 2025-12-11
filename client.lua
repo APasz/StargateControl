@@ -1,5 +1,4 @@
-local PREFERRED_MODEM_SIDE = "back"
-local PRIMARY_PROGRAM = "dial"
+local CONFIG = require("client_config")
 local REQUEST_PROTOCOL = "files_request"
 local REPLY_PROTOCOL = "files_reply"
 local SERVER_NAME = "SGServer"
@@ -26,11 +25,11 @@ local function ensure_modem_open(preferred_side)
     error(("Failed to open modem on %s"):format(preferred_side), 0)
 end
 
-ensure_modem_open(PREFERRED_MODEM_SIDE)
+ensure_modem_open(CONFIG.side)
 
-local FILES = { PRIMARY_PROGRAM, "utils", "addresses", "client" }
+local FILES = { CONFIG.primary_file, "utils", "addresses", "client" }
 -- files which are required to run the primary program, settings.lua should ideally only be fetched on initial setup
-local REQUIRED_FILES = { PRIMARY_PROGRAM, "utils", "addresses", "client", "settings" }
+local REQUIRED_FILES = { CONFIG.primary_file, "utils", "addresses", "client", "settings" }
 
 local args = { ... }
 local is_setup = args[1] == "setup"
@@ -111,7 +110,7 @@ local function write_file(file)
 end
 
 local function run_primary()
-    return shell.run(PRIMARY_PROGRAM)
+    return shell.run(CONFIG.primary_file)
 end
 
 local function fallback_or_error(message)
