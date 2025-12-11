@@ -47,7 +47,7 @@ local function get_site(site_override)
         return trimmed_override, normalised_override
     end
 
-    local gate = U.get_inf_gate(false)
+    local gate = U.get_inf_gate()
     if gate and type(gate.getLocalAddress) == "function" then
         local home = gate.getLocalAddress()
         print("Home Address: " .. home)
@@ -148,7 +148,7 @@ function U.reset_outputs(inf_rs)
 end
 
 function U.reset_stargate()
-    local gate = U.get_inf_gate(false)
+    local gate = U.get_inf_gate()
     if not gate then
         return false
     end
@@ -164,7 +164,7 @@ function U.reset_stargate()
 end
 
 function U.reset_if_chevrons_engaged(cancel_check)
-    local gate = U.get_inf_gate(false)
+    local gate = U.get_inf_gate()
     if not gate or type(gate.getChevronsEngaged) ~= "function" then
         return false, 0
     end
@@ -500,7 +500,7 @@ function U.address_to_string(addr)
         return "-"
     end
 
-    local interface = U.get_inf_gate(false)
+    local interface = U.get_inf_gate()
     if interface and type(interface.addressToString) == "function" then
         local converted = interface.addressToString(addr)
         if converted and converted ~= "-" and converted ~= "" then
@@ -542,7 +542,7 @@ function U.pad_to_width(text, width)
 end
 
 function U.dial_fast(gate, cancel_check)
-    local interface = U.get_inf_gate(false)
+    local interface = U.get_inf_gate()
     if not interface then
         return false, "no_gate"
     end
