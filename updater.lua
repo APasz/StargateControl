@@ -4,8 +4,8 @@ if not http then
     error("HTTP API is disabled")
 end
 
-local base_url = "https://raw.githubusercontent.com/APasz/StargateControl/main/"
-local target_dir = "disk"
+local BASE_URL = "https://raw.githubusercontent.com/APasz/StargateControl/main/"
+local TARGET_DIR = "disk"
 
 local files = {
     "dial.lua",
@@ -18,12 +18,12 @@ local files = {
     "updater.lua",
 }
 
-if not fs.exists(target_dir) or not fs.isDir(target_dir) then
-    error("No '" .. target_dir .. "' directory")
+if not fs.exists(TARGET_DIR) or not fs.isDir(TARGET_DIR) then
+    error("No '" .. TARGET_DIR .. "' directory")
 end
 
 local function download_file(name, destination)
-    local url = base_url .. name
+    local url = BASE_URL .. name
     print("Fetching " .. name .. "...")
     local res, err = http.get(url)
     if not res then
@@ -34,7 +34,7 @@ local function download_file(name, destination)
     local content = res.readAll()
     res.close()
 
-    local path = destination or fs.combine(target_dir, name)
+    local path = destination or fs.combine(TARGET_DIR, name)
     local f = fs.open(path, "w")
     if not f then
         print("  Failed to open " .. path .. " for writing.")

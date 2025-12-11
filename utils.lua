@@ -1,18 +1,22 @@
 package.path = package.path .. ";disk/?.lua;disk/?/init.lua"
-local sg_settings = require("settings")
-local sg_addresses = require("addresses")
+local SG_ADDRESSES = require("addresses")
 
 local U = {}
-local inf_gate
-local inf_gate_is_crystal = false
-local inf_gate_is_advanced = false
-local inf_rs
-local inf_mon
+local INF_GATE
+local INF_GATE_IS_CRYSTAL = false
+local INF_GATE_IS_ADVANCED = false
+local INF_RS
+local INF_MON
 U.addr_input = nil
-local line_offset = 0
-local mon_size = nil
+local LINE_OFFSET = 0
+local MON_SIZE = nil
 local function is_cancelled(cancel_check)
     return cancel_check and cancel_check() == true
+end
+
+function U.ensure_inf_rs()
+    INF_RS = u.get_inf_rs()
+    return INF_RS
 end
 
 local function to_set(list)
@@ -41,32 +45,32 @@ function U.get_inf_gate(require_gate)
     if require_gate == nil then
         require_gate = true
     end
-    if inf_gate then
-        return inf_gate, inf_gate_is_crystal, inf_gate_is_advanced
+    if INF_GATE then
+        return INF_GATE, INF_GATE_IS_CRYSTAL, INF_GATE_IS_ADVANCED
     end
 
-    inf_gate = peripheral.find("advanced_crystal_interface")
-    if inf_gate then
-        inf_gate_is_crystal = true
-        inf_gate_is_advanced = true
+    INF_GATE = peripheral.find("advanced_crystal_interface")
+    if INF_GATE then
+        INF_GATE_IS_CRYSTAL = true
+        INF_GATE_IS_ADVANCED = true
         print("Found: Adv Crystal Interface")
-        return inf_gate, inf_gate_is_crystal, inf_gate_is_advanced
+        return INF_GATE, INF_GATE_IS_CRYSTAL, INF_GATE_IS_ADVANCED
     end
 
-    inf_gate = peripheral.find("crystal_interface")
-    if inf_gate then
-        inf_gate_is_crystal = false
-        inf_gate_is_advanced = true
+    INF_GATE = peripheral.find("crystal_interface")
+    if INF_GATE then
+        INF_GATE_IS_CRYSTAL = false
+        INF_GATE_IS_ADVANCED = true
         print("Found: Crystal Interface")
-        return inf_gate, inf_gate_is_crystal, inf_gate_is_advanced
+        return INF_GATE, INF_GATE_IS_CRYSTAL, INF_GATE_IS_ADVANCED
     end
 
-    inf_gate = peripheral.find("basic_interface")
-    if inf_gate then
-        inf_gate_is_crystal = false
-        inf_gate_is_advanced = false
+    INF_GATE = peripheral.find("basic_interface")
+    if INF_GATE then
+        INF_GATE_IS_CRYSTAL = false
+        INF_GATE_IS_ADVANCED = false
         print("Found: Basic Interface")
-        return inf_gate, inf_gate_is_crystal, inf_gate_is_advanced
+        return INF_GATE, INF_GATE_IS_CRYSTAL, INF_GATE_IS_ADVANCED
     end
 
     if require_gate then
@@ -130,22 +134,22 @@ function U.reset_if_chevrons_engaged(cancel_check)
 end
 
 function U.get_inf_rs()
-    if inf_rs and inf_rs ~= redstone then
-        return inf_rs
+    if INF_RS and INF_RS ~= redstone then
+        return INF_RS
     end
 
     local found = peripheral.find("redstone_relay")
     if found then
-        inf_rs = found
-        U.reset_outputs(inf_rs)
-        return inf_rs
+        INF_RS = found
+        U.reset_outputs(INF_RS)
+        return INF_RS
     end
 
-    if not inf_rs then
-        inf_rs = redstone
-        U.reset_outputs(inf_rs)
+    if not INF_RS then
+        INF_RS = redstone
+        U.reset_outputs(INF_RS)
     end
-    return inf_rs
+    return INF_RS
 end
 
 function U.rs_input(side)
@@ -168,39 +172,39 @@ function U.rs_input(side)
 end
 
 local function init_monitor(scale, should_clear)
-    if not inf_mon then
+    if not INF_MON then
         return
     end
-    inf_mon.setTextScale(scale or 1)
-    inf_mon.setCursorPos(1, 1)
+    INF_MON.setTextScale(scale or 1)
+    INF_MON.setCursorPos(1, 1)
     if should_clear then
-        inf_mon.clear()
+        INF_MON.clear()
     end
-    mon_size = nil
+    MON_SIZE = nil
 end
 
 local function update_mon_size()
-    if not inf_mon or type(inf_mon.getSize) ~= "function" then
-        mon_size = nil
+    if not INF_MON or type(INF_MON.getSize) ~= "function" then
+        MON_SIZE = nil
         return
     end
-    local w, h = inf_mon.getSize()
+    local w, h = INF_MON.getSize()
     if w and h then
-        mon_size = { w = w, h = h }
+        MON_SIZE = { w = w, h = h }
     end
 end
 
 function U.get_inf_mon()
-    if inf_mon then
-        return inf_mon
+    if INF_MON then
+        return INF_MON
     end
 
-    inf_mon = peripheral.find("monitor")
-    if inf_mon then
+    INF_MON = peripheral.find("monitor")
+    if INF_MON then
         init_monitor(1, true)
         update_mon_size()
     end
-    return inf_mon
+    return INF_MON
 end
 
 function U.prepare_monitor(scale, should_clear)
@@ -215,7 +219,7 @@ function U.prepare_monitor(scale, should_clear)
     if should_clear then
         mon.clear()
     end
-    mon_size = nil
+    MON_SIZE = nil
     update_mon_size()
 end
 
@@ -235,12 +239,12 @@ end
 
 function U.get_monitor_size(default_width, default_height)
     U.get_inf_mon()
-    if not mon_size then
+    if not MON_SIZE then
         update_mon_size()
     end
 
-    local width = (mon_size and mon_size.w) or default_width or 32
-    local height = (mon_size and mon_size.h) or default_height or 15
+    local width = (MON_SIZE and MON_SIZE.w) or default_width or 32
+    local height = (MON_SIZE and MON_SIZE.h) or default_height or 15
 
     if not width or width < 1 then
         width = 1
@@ -270,7 +274,7 @@ function U.clear_all_lines()
 end
 
 function U.update_line(text, line, log_text)
-    line = (line or 1) + line_offset
+    line = (line or 1) + LINE_OFFSET
     text = text or ""
     log_text = log_text or text
 
@@ -323,12 +327,12 @@ function U.write_lines(lines, start_line)
 end
 
 function U.set_line_offset(offset)
-    line_offset = math.max(0, offset or 0)
+    LINE_OFFSET = math.max(0, offset or 0)
 end
 
 function U.reset_line_offset()
     U.set_line_offset(0)
-    return line_offset
+    return LINE_OFFSET
 end
 
 function U.wait_for_touch()
@@ -338,7 +342,7 @@ function U.wait_for_touch()
     end
     while true do
         local _, _, _, y = os.pullEvent("monitor_touch")
-        if y >= 1 and y <= #sg_addresses then
+        if y >= 1 and y <= #SG_ADDRESSES then
             U.addr_input = y
             return
         end
@@ -372,7 +376,7 @@ function U.addresses_match(a, b)
 end
 
 function U.lookup_name(addr)
-    for _, g in ipairs(sg_addresses) do
+    for _, g in ipairs(SG_ADDRESSES) do
         if U.addresses_match(addr, g.address) then
             return g.name
         end
@@ -380,7 +384,7 @@ function U.lookup_name(addr)
 end
 
 function U.find_gate_by_address(addr)
-    for _, gate in ipairs(sg_addresses or {}) do
+    for _, gate in ipairs(SG_ADDRESSES or {}) do
         if U.addresses_match(addr, gate.address) then
             return gate
         end
@@ -413,7 +417,7 @@ function U.get_selection(ev, p2, p3, p4)
         return
     end
 
-    if ev == "monitor_touch" and p4 and p4 >= 1 and p4 <= #sg_addresses then
+    if ev == "monitor_touch" and p4 and p4 >= 1 and p4 <= #SG_ADDRESSES then
         return p4
     end
 end

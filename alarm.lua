@@ -1,11 +1,6 @@
 package.path = package.path .. ";disk/?.lua;disk/?/init.lua"
-local sg_utils = require("utils")
-local inf_rs = sg_utils.get_inf_rs()
-
-local function ensure_inf_rs()
-    inf_rs = sg_utils.get_inf_rs()
-    return inf_rs
-end
+local SG_UTILS = require("utils")
+local INF_RS = SG_UTILS.get_inf_rs()
 
 local side_toggle = "front"
 local side_input = "bottom"
@@ -28,14 +23,14 @@ local stable_input = false
 local input_stable_count = 0
 
 local function set_toggle(active)
-    local rs = ensure_inf_rs()
+    local rs = SG_UTILS.ensure_inf_rs()
     if rs and side_toggle then
         rs.setOutput(side_toggle, active)
     end
 end
 
 local function clear_phase_outputs()
-    local rs = ensure_inf_rs()
+    local rs = SG_UTILS.ensure_inf_rs()
     if not rs then
         return
     end
@@ -45,7 +40,7 @@ local function clear_phase_outputs()
 end
 
 local function set_phase(target)
-    local rs = ensure_inf_rs()
+    local rs = SG_UTILS.ensure_inf_rs()
     if not rs then
         return
     end
@@ -72,7 +67,7 @@ local function should_flash_status(input_active)
     if active_input == nil then
         active_input = stable_input
         if active_input == nil then
-            active_input = sg_utils.rs_input(side_input)
+            active_input = SG_UTILS.rs_input(side_input)
         end
     end
     return alarm_active or (manual_cancelled and active_input)
@@ -108,24 +103,24 @@ local function draw_status(mon, status, should_flash)
 
     local flashing = should_flash and status_flash_visible and mon.isColor and mon.isColor()
     if flashing then
-        sg_utils.set_text_color(colors.red)
+        SG_UTILS.set_text_color(colors.red)
     end
 
     mon.write(status_line)
     if flashing then
-        sg_utils.reset_text_color()
+        SG_UTILS.reset_text_color()
     end
 end
 
 local function render_screen()
-    local mon = sg_utils.get_inf_mon()
+    local mon = SG_UTILS.get_inf_mon()
     if not mon then
         return
     end
 
-    sg_utils.prepare_monitor(0.5, true)
+    SG_UTILS.prepare_monitor(0.5, true)
 
-    local input_active = sg_utils.rs_input(side_input)
+    local input_active = SG_UTILS.rs_input(side_input)
     local status
     local status_should_flash
     if alarm_active then
@@ -180,7 +175,7 @@ local function stop_alarm()
 end
 
 local function refresh_input_state()
-    local input_active = sg_utils.rs_input(side_input)
+    local input_active = SG_UTILS.rs_input(side_input)
     if input_active ~= last_raw_input then
         input_stable_count = 1
         last_raw_input = input_active
@@ -264,8 +259,8 @@ local function event_loop()
         elseif ev == "redstone" then
             refresh_input_state()
         elseif ev == "terminate" then
-            sg_utils.clear_all_lines()
-            sg_utils.show_top_message("! UNAVAILABLE !")
+            SG_UTILS.clear_all_lines()
+            SG_UTILS.show_top_message("! UNAVAILABLE !")
             break
         end
 

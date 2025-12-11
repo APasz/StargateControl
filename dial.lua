@@ -1,13 +1,13 @@
 package.path = package.path .. ";disk/?.lua;disk/?/init.lua"
-local sg_utils = require("utils")
-local sg_settings = require("settings")
-local sg_addresses = sg_utils.filtered_addresses(require("addresses"))
+local SG_UTILS = require("utils")
+local SG_SETTINGS = require("settings")
+local SG_ADDRESSES = SG_UTILS.filtered_addresses(require("addresses"))
 
-local inf_gate = sg_utils.get_inf_gate(false)
-local inf_rs = sg_utils.get_inf_rs()
-sg_utils.get_inf_mon()
+local INF_GATE = SG_UTILS.get_inf_gate(false)
+local INF_RS = SG_UTILS.get_inf_rs()
+SG_UTILS.get_inf_mon()
 
-local state = {
+local STATE = {
     connected = false,
     outbound = nil,
     timeout_remaining = nil,
@@ -18,22 +18,19 @@ local state = {
     incoming_seconds = 0,
     top_lines = 0,
 }
-local timers = {}
-local timer_lookup = {}
+local TIMERS = {}
+local TIMER_LOOKUP = {}
 
 local function ensure_inf_gate(require_gate)
-    inf_gate = sg_utils.get_inf_gate(require_gate == nil and false or require_gate)
-    return inf_gate
+    INF_GATE = SG_UTILS.get_inf_gate(require_gate == nil and false or require_gate)
+    return INF_GATE
 end
 
-local function ensure_inf_rs()
-    inf_rs = sg_utils.get_inf_rs()
-    return inf_rs
-end
+
 
 local function send_incoming_message()
     local gate = ensure_inf_gate(false)
-    if not gate or state.outbound ~= false then
+    if not gate or STATE.outbound ~= false then
         return
     end
     if type(gate.sendStargateMessage) ~= "function" then
@@ -42,7 +39,7 @@ local function send_incoming_message()
 
     local ok, err = pcall(gate.sendStargateMessage, "sg_disconnect")
     if not ok then
-        sg_utils.update_line("Send Stargate message Failed!", 1)
+        SG_UTILS.update_line("Send Stargate message Failed!", 1)
     end
 end
 
@@ -67,37 +64,37 @@ local function is_wormhole_open()
 end
 
 local function reset_top()
-    sg_utils.reset_line_offset()
-    state.top_lines = 0
+    SG_UTILS.reset_line_offset()
+    STATE.top_lines = 0
 end
 
 local function apply_top_offset()
-    sg_utils.set_line_offset(math.max(state.top_lines - 1, 0))
+    SG_UTILS.set_line_offset(math.max(STATE.top_lines - 1, 0))
 end
 
 local function show_top_message(text)
-    sg_utils.clear_lines(state.top_lines)
+    SG_UTILS.clear_lines(STATE.top_lines)
     reset_top()
-    state.top_lines = sg_utils.update_line(text) or 1
+    STATE.top_lines = SG_UTILS.update_line(text) or 1
     apply_top_offset()
-    return state.top_lines
+    return STATE.top_lines
 end
 
 local function show_top_message_lines(lines)
-    sg_utils.clear_lines(state.top_lines)
+    SG_UTILS.clear_lines(STATE.top_lines)
     reset_top()
 
-    state.top_lines = sg_utils.write_lines(lines, 1) or 0
-    if state.top_lines < 1 then
-        state.top_lines = 1
+    STATE.top_lines = SG_UTILS.write_lines(lines, 1) or 0
+    if STATE.top_lines < 1 then
+        STATE.top_lines = 1
     end
 
     apply_top_offset()
-    return state.top_lines
+    return STATE.top_lines
 end
 
 local function show_status(lines, scale)
-    sg_utils.prepare_monitor(scale or 1, true)
+    SG_UTILS.prepare_monitor(scale or 1, true)
     reset_top()
     if type(lines) == "table" then
         return show_top_message_lines(lines)
@@ -107,7 +104,7 @@ local function show_status(lines, scale)
 end
 
 local function compute_menu_layout(addr_count)
-    local mon_width, mon_height = sg_utils.get_monitor_size(32, 15)
+    local mon_width, mon_height = SG_UTILS.get_monitor_size(32, 15)
     local usable_width = math.max(mon_width - 1, 1)
 
     local min_col_width = 6
@@ -142,44 +139,44 @@ local function compute_menu_layout(addr_count)
 end
 
 local function cancel_timer(name)
-    local id = timers[name]
+    local id = TIMERS[name]
     if id then
         os.cancelTimer(id)
-        timer_lookup[id] = nil
+        TIMER_LOOKUP[id] = nil
     end
-    timers[name] = nil
+    TIMERS[name] = nil
 end
 
 local function start_timer(name, delay)
     cancel_timer(name)
     local id = os.startTimer(delay)
-    timers[name] = id
-    timer_lookup[id] = name
+    TIMERS[name] = id
+    TIMER_LOOKUP[id] = name
     return id
 end
 
 local function timer_name(id)
-    return timer_lookup[id]
+    return TIMER_LOOKUP[id]
 end
 
 local function reset_timer()
     cancel_timer("countdown")
-    state.timeout_remaining = nil
+    STATE.timeout_remaining = nil
 end
 
 local function clear_incoming_counter()
     cancel_timer("incoming")
-    state.incoming_seconds = 0
+    STATE.incoming_seconds = 0
 end
 
 local function start_countdown(remaining)
     clear_incoming_counter()
     reset_timer()
-    local timeout = sg_settings.timeout
+    local timeout = SG_SETTINGS.timeout
     if type(remaining) == "number" and remaining >= 0 then
         timeout = remaining
     end
-    state.timeout_remaining = timeout
+    STATE.timeout_remaining = timeout
     start_timer("countdown", 1)
 end
 
@@ -188,12 +185,12 @@ local function clear_screen_timer()
 end
 
 local function start_disconnect_fallback()
-    state.waiting_disconnect = true
+    STATE.waiting_disconnect = true
     start_timer("disconnect", 3)
 end
 
 local function clear_disconnect_fallback()
-    state.waiting_disconnect = false
+    STATE.waiting_disconnect = false
     cancel_timer("disconnect")
 end
 
@@ -207,11 +204,11 @@ end
 
 local function screen()
     -- Menu of gate address options
-    local rs = ensure_inf_rs()
-    sg_utils.reset_outputs(rs)
-    sg_utils.prepare_monitor(1, true)
+    local rs = SG_UTILS.ensure_inf_rs()
+    SG_UTILS.reset_outputs(rs)
+    SG_UTILS.prepare_monitor(1, true)
     reset_top()
-    local addr_count = #sg_addresses
+    local addr_count = #SG_ADDRESSES
     if addr_count == 0 then
         return
     end
@@ -227,51 +224,51 @@ local function screen()
         local log_pieces = {}
         for col = 1, columns, 1 do
             local idx = (col - 1) * rows + row
-            local gate = sg_addresses[idx]
+            local gate = SG_ADDRESSES[idx]
 
-            local display_entry = gate and sg_utils.format_address(idx, gate, entry_width, false) or ""
-            local log_entry = gate and sg_utils.format_address(idx, gate, nil, true) or ""
+            local display_entry = gate and SG_UTILS.format_address(idx, gate, entry_width, false) or ""
+            local log_entry = gate and SG_UTILS.format_address(idx, gate, nil, true) or ""
 
             if col < columns then
-                display_entry = sg_utils.pad_to_width(display_entry, col_width)
-                log_entry = sg_utils.pad_to_width(log_entry, col_width)
+                display_entry = SG_UTILS.pad_to_width(display_entry, col_width)
+                log_entry = SG_UTILS.pad_to_width(log_entry, col_width)
             end
 
             display_pieces[#display_pieces + 1] = display_entry
             log_pieces[#log_pieces + 1] = log_entry
         end
-        sg_utils.update_line(table.concat(display_pieces), row, table.concat(log_pieces))
+        SG_UTILS.update_line(table.concat(display_pieces), row, table.concat(log_pieces))
     end
 
-    local mon = sg_utils.get_inf_mon()
+    local mon = SG_UTILS.get_inf_mon()
     if mon then
-        local fast = sg_utils.rs_input(sg_settings.fast_dial_rs_side)
+        local fast = SG_UTILS.rs_input(SG_SETTINGS.fast_dial_rs_side)
         mon.setCursorPos(layout.width, layout.height)
         mon.write(fast and ">" or "#")
     end
 end
 
 local function disconnect_now(mark_early)
-    local was_connected = state.connected
+    local was_connected = STATE.connected
     if mark_early then
-        state.disconnected_early = true
+        STATE.disconnected_early = true
     end
     reset_timer()
     clear_incoming_counter()
     local gate = ensure_inf_gate(false)
     if gate and was_connected then
-        sg_utils.update_line("Disconnecting...")
+        SG_UTILS.update_line("Disconnecting...")
         if type(gate.disconnectStargate) == "function" then
             gate.disconnectStargate()
         else
-            sg_utils.reset_stargate()
+            SG_UTILS.reset_stargate()
         end
         start_disconnect_fallback()
     else
         clear_disconnect_fallback()
     end
-    state.connected = false
-    state.outbound = nil
+    STATE.connected = false
+    STATE.outbound = nil
     if not was_connected then
         screen()
     end
@@ -282,7 +279,7 @@ local function dial_with_cancel(gate, fast)
     local dial_result
 
     local function run_dial()
-        local success, reason = sg_utils.dial(gate, fast, function()
+        local success, reason = SG_UTILS.dial(gate, fast, function()
             return cancel_requested
         end)
         dial_result = { success, reason }
@@ -290,7 +287,7 @@ local function dial_with_cancel(gate, fast)
 
     local function wait_for_cancel()
         while not dial_result do
-            sg_utils.wait_for_disconnect_request()
+            SG_UTILS.wait_for_disconnect_request()
             if dial_result then
                 break
             end
@@ -317,22 +314,22 @@ local function handle_selection(sel)
     if type(sel) == "table" and sel.address then
         gate = sel
     elseif type(sel) == "number" then
-        gate = sg_addresses[sel]
+        gate = SG_ADDRESSES[sel]
     else
         return
     end
-    if not (gate and sg_utils.is_valid_address(gate.address)) then
+    if not (gate and SG_UTILS.is_valid_address(gate.address)) then
         show_status("Invalid address (need 7-9 symbols)")
         return
     end
 
-    state.gate = gate
-    state.gate_id = sg_utils.address_to_string(gate.address)
-    state.disconnected_early = false
+    STATE.gate = gate
+    STATE.gate_id = SG_UTILS.address_to_string(gate.address)
+    STATE.disconnected_early = false
 
-    local fast = sg_utils.rs_input(sg_settings.fast_dial_rs_side)
+    local fast = SG_UTILS.rs_input(SG_SETTINGS.fast_dial_rs_side)
     local dialing_type = fast and "Fast Dialing: " or "Dialing: "
-    show_status({ dialing_type .. gate.name, state.gate_id })
+    show_status({ dialing_type .. gate.name, STATE.gate_id })
 
     local success, reason, cancelled = dial_with_cancel(gate, fast)
     if success then
@@ -348,25 +345,25 @@ local function handle_selection(sel)
             end
         end
         if not connected_now then
-            state.outbound = nil
-            state.connected = false
-            state.gate = nil
-            state.gate_id = nil
+            STATE.outbound = nil
+            STATE.connected = false
+            STATE.gate = nil
+            STATE.gate_id = nil
             show_status("Unable to establish wormhole")
             clear_screen_timer()
             start_timer("screen", 3)
             return
         end
-        show_top_message_lines({ "Dialed: " .. gate.name, state.gate_id })
-        state.outbound, state.connected = true, true
+        show_top_message_lines({ "Dialed: " .. gate.name, STATE.gate_id })
+        STATE.outbound, STATE.connected = true, true
         start_countdown()
         return
     end
 
-    state.outbound = nil
-    state.connected = false
-    state.gate = nil
-    state.gate_id = nil
+    STATE.outbound = nil
+    STATE.connected = false
+    STATE.gate = nil
+    STATE.gate_id = nil
     local message
     if reason == "no_gate" then
         message = "No gate interface found"
@@ -419,10 +416,10 @@ local function make_banner(width, phrase, pad)
 end
 
 local function show_incoming_banner()
-    sg_utils.prepare_monitor(1, true)
-    sg_utils.set_text_color(colors.red)
+    SG_UTILS.prepare_monitor(1, true)
+    SG_UTILS.set_text_color(colors.red)
     reset_top()
-    local width = select(1, sg_utils.get_monitor_size())
+    local width = select(1, SG_UTILS.get_monitor_size())
     if not width or width < 1 then
         width = 1
     end
@@ -431,19 +428,19 @@ local function show_incoming_banner()
 
     local middle = make_banner(width, "Incoming Wormhole", "!")
 
-    local lines_written = sg_utils.write_lines({ top_bottom, middle, top_bottom }, 1) or 3
-    sg_utils.reset_text_color()
-    state.top_lines = math.max(lines_written, 1)
-    sg_utils.set_line_offset(math.max(state.top_lines - 1, 0))
+    local lines_written = SG_UTILS.write_lines({ top_bottom, middle, top_bottom }, 1) or 3
+    SG_UTILS.reset_text_color()
+    STATE.top_lines = math.max(lines_written, 1)
+    SG_UTILS.set_line_offset(math.max(STATE.top_lines - 1, 0))
 end
 
 local function update_incoming_counter_line()
-    if not state.top_lines or state.top_lines <= 0 then
+    if not STATE.top_lines or STATE.top_lines <= 0 then
         return
     end
-    sg_utils.set_line_offset(0)
-    sg_utils.update_line("Open for " .. state.incoming_seconds .. "s", state.top_lines + 1)
-    sg_utils.set_line_offset(math.max(state.top_lines - 1, 0))
+    SG_UTILS.set_line_offset(0)
+    SG_UTILS.update_line("Open for " .. STATE.incoming_seconds .. "s", STATE.top_lines + 1)
+    SG_UTILS.set_line_offset(math.max(STATE.top_lines - 1, 0))
 end
 
 local function get_open_seconds()
@@ -462,12 +459,10 @@ end
 
 local function start_incoming_counter(initial_seconds)
     clear_incoming_counter()
-    state.incoming_seconds = math.max(math.floor(initial_seconds or 0), 0)
+    STATE.incoming_seconds = math.max(math.floor(initial_seconds or 0), 0)
     update_incoming_counter_line()
     start_timer("incoming", 1)
 end
-
-
 
 local function resume_active_wormhole()
     local gate = ensure_inf_gate(false)
@@ -486,24 +481,24 @@ local function resume_active_wormhole()
     elseif outgoing and type(gate.getDialedAddress) == "function" then
         addr = gate.getDialedAddress()
     end
-    local addr_str = sg_utils.address_to_string(addr)
+    local addr_str = SG_UTILS.address_to_string(addr)
 
-    state.connected = true
-    state.disconnected_early = false
+    STATE.connected = true
+    STATE.disconnected_early = false
 
     if outgoing then
-        state.outbound = true
-        state.gate_id = addr_str
-        local gate = sg_utils.find_gate_by_address(addr)
+        STATE.outbound = true
+        STATE.gate_id = addr_str
+        local gate = SG_UTILS.find_gate_by_address(addr)
         show_status({ "Active wormhole to: " .. gate.name, addr_str })
-        local remaining = sg_settings.timeout
+        local remaining = SG_SETTINGS.timeout
         if open_seconds then
             remaining = math.max(remaining - open_seconds, 0)
         end
         start_countdown(remaining)
     else
-        state.outbound = false
-        state.gate_id = addr_str ~= "-" and addr_str or "Incoming"
+        STATE.outbound = false
+        STATE.gate_id = addr_str ~= "-" and addr_str or "Incoming"
         show_incoming_banner()
         start_incoming_counter(open_seconds)
     end
@@ -517,28 +512,28 @@ local function handle_timer_event(timer_id)
         return
     end
 
-    timers[name] = nil
-    timer_lookup[timer_id] = nil
+    TIMERS[name] = nil
+    TIMER_LOOKUP[timer_id] = nil
 
     if name == "countdown" then
-        if not state.connected then
+        if not STATE.connected then
             reset_timer()
             return
         end
 
-        if state.timeout_remaining <= 0 then
+        if STATE.timeout_remaining <= 0 then
             disconnect_now(false)
             return
         end
 
-        sg_utils.update_line("Stargate Disconnect in " .. state.timeout_remaining, 2)
-        state.timeout_remaining = state.timeout_remaining - 1
+        SG_UTILS.update_line("Stargate Disconnect in " .. STATE.timeout_remaining, 2)
+        STATE.timeout_remaining = STATE.timeout_remaining - 1
         start_timer("countdown", 1)
         return
     end
 
     if name == "disconnect" then
-        if state.waiting_disconnect then
+        if STATE.waiting_disconnect then
             show_disconnected_screen()
         else
             cancel_timer("disconnect")
@@ -547,7 +542,7 @@ local function handle_timer_event(timer_id)
     end
 
     if name == "incoming" then
-        state.incoming_seconds = (state.incoming_seconds or 0) + 1
+        STATE.incoming_seconds = (STATE.incoming_seconds or 0) + 1
         update_incoming_counter_line()
         start_timer("incoming", 1)
         return
@@ -560,10 +555,10 @@ local function handle_timer_event(timer_id)
 end
 
 local function handle_redstone_event()
-    if state.connected or state.outbound == false then
+    if STATE.connected or STATE.outbound == false then
         return
     end
-    if timers.screen then
+    if TIMERS.screen then
         clear_screen_timer()
     end
     screen()
@@ -575,16 +570,16 @@ local function handle_terminate()
 end
 
 local function handle_user_input(ev, p2, p3, p4)
-    if timers.screen then
+    if TIMERS.screen then
         clear_screen_timer()
-        if not state.connected and state.outbound ~= false then
+        if not STATE.connected and STATE.outbound ~= false then
             screen()
         end
         return
     end
 
-    if state.connected or state.outbound == false then
-        if state.outbound == true then
+    if STATE.connected or STATE.outbound == false then
+        if STATE.outbound == true then
             if is_wormhole_open() then
                 disconnect_now(true)
             end
@@ -594,20 +589,20 @@ local function handle_user_input(ev, p2, p3, p4)
         return
     end
 
-    local sel = sg_utils.get_selection(ev, p2, p3, p4)
+    local sel = SG_UTILS.get_selection(ev, p2, p3, p4)
     if sel then
         handle_selection(sel)
     end
 end
 
 local function stargate_disconnected(p2, feedback_num, feedback_desc)
-    if state.connected then
+    if STATE.connected then
         reset_timer()
     end
-    state.connected = false
-    state.outbound = nil
-    state.gate = nil
-    state.gate_id = nil
+    STATE.connected = false
+    STATE.outbound = nil
+    STATE.gate = nil
+    STATE.gate_id = nil
     show_disconnected_screen()
 end
 
@@ -615,47 +610,47 @@ local function stargate_message_received(p2, message)
     if message ~= "sg_disconnect" then
         return
     end
-    if state.connected and state.outbound == true then
-        sg_utils.update_line("Remote disconnect requested", 3)
+    if STATE.connected and STATE.outbound == true then
+        SG_UTILS.update_line("Remote disconnect requested", 3)
         disconnect_now(true)
     end
 end
 
 local function stargate_chevron_engaged(p2, count, engaged, incoming, symbol)
     if incoming then
-        local rs = ensure_inf_rs()
-        if sg_settings.incom_alarm_rs_side and rs then
-            rs.setOutput(sg_settings.incom_alarm_rs_side, true)
+        local rs = SG_UTILS.ensure_inf_rs()
+        if SG_SETTINGS.incom_alarm_rs_side and rs then
+            rs.setOutput(SG_SETTINGS.incom_alarm_rs_side, true)
         end
-        sg_utils.prepare_monitor(1)
-        sg_utils.set_text_color(colors.red)
-        sg_utils.update_line("!!! Incoming wormhole !!!")
-        sg_utils.reset_text_color()
+        SG_UTILS.prepare_monitor(1)
+        SG_UTILS.set_text_color(colors.red)
+        SG_UTILS.update_line("!!! Incoming wormhole !!!")
+        SG_UTILS.reset_text_color()
     end
 end
 
 local function stargate_incoming_wormhole(p2, address)
     show_incoming_banner()
-    state.outbound = false
-    state.gate = nil
-    state.gate_id = "Incoming"
-    state.disconnected_early = false
+    STATE.outbound = false
+    STATE.gate = nil
+    STATE.gate_id = "Incoming"
+    STATE.disconnected_early = false
     start_incoming_counter(get_open_seconds())
 end
 
 local function stargate_outgoing_wormhole(p2, address)
     clear_screen_timer()
-    sg_utils.update_line("Wormhole open", 3)
-    state.outbound = true
-    state.connected = true
-    if not state.gate_id then
-        state.gate_id = sg_utils.address_to_string(address)
+    SG_UTILS.update_line("Wormhole open", 3)
+    STATE.outbound = true
+    STATE.connected = true
+    if not STATE.gate_id then
+        STATE.gate_id = SG_UTILS.address_to_string(address)
     end
     start_countdown()
 end
 
 local function stargate_reset(p2, feedback_num, feedback_desc)
-    sg_utils.reset_outputs(ensure_inf_rs())
+    SG_UTILS.reset_outputs(SG_UTILS.ensure_inf_rs())
 end
 
 local function stargate_deconstructing_entity(p2, enity_type, entity_name, uuid, went_wrong_way) end

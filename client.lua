@@ -1,4 +1,8 @@
-local preferred_modem_side = "back"
+local PREFERRED_MODEM_SIDE = "back"
+local PRIMARY_PROGRAM = "dial"
+local REQUEST_PROTOCOL = "files_request"
+local REPLY_PROTOCOL = "files_reply"
+local SERVER_NAME = "SGServer"
 
 local function is_wireless_modem(side)
     if not side or peripheral.getType(side) ~= "modem" then
@@ -30,44 +34,39 @@ local function ensure_modem_open(preferred_side)
     error("No wireless/ender modem found; attach a wireless or ender modem", 0)
 end
 
-local modem_side = ensure_modem_open(preferred_modem_side)
-local primary_file = "dial"
+ensure_modem_open(PREFERRED_MODEM_SIDE)
 
-local files = { primary_file, "utils", "addresses", "client" }
--- files which are required to run the primary program, settings.lua should idealy only be fetched on intial setup
-local required_files = { primary_file, "utils", "settings", "addresses", "client" }
+local FILES = { PRIMARY_PROGRAM, "utils", "addresses", "client" }
+-- files which are required to run the primary program, settings.lua should ideally only be fetched on initial setup
+local REQUIRED_FILES = { PRIMARY_PROGRAM, "utils", "addresses", "client", "settings" }
 
 local args = { ... }
 local is_setup = args[1] == "setup"
-local files_to_fetch = is_setup and required_files or files
+local files_to_fetch = is_setup and REQUIRED_FILES or FILES
 
 local function file_on_disk(name)
     return fs.exists(name) or fs.exists(("%s.lua"):format(name))
 end
 
 local function has_required_files()
-    for _, name in ipairs(required_files) do
+    for _, name in ipairs(REQUIRED_FILES) do
         if not file_on_disk(name) then
+            print("Missing file: " .. name)
             return false
         end
     end
     return true
 end
 
-local function get_server_id()
-    local id = rednet.lookup("files_request", "SGServer")
-    return id
-end
-
 local function find_server_with_retry(attempts, initial_delay)
-    attempts = attempts or 5
+    local max_attempts = attempts or 5
     local delay = initial_delay or 1
-    for attempt = 1, attempts do
-        local id = get_server_id()
+    for attempt = 1, max_attempts do
+        local id = rednet.lookup(REQUEST_PROTOCOL, SERVER_NAME)
         if id then
             return id
         end
-        if attempt < attempts then
+        if attempt < max_attempts then
             sleep(delay)
             delay = math.min(delay * 2, 8)
         end
@@ -76,15 +75,15 @@ local function find_server_with_retry(attempts, initial_delay)
 end
 
 local function fetch_file(name, server_id)
-    rednet.send(server_id, name, "files_request")
+    rednet.send(server_id, name, REQUEST_PROTOCOL)
     while true do
-        local id, payload, proto = rednet.receive("files_reply", 5)
+        local id, payload = rednet.receive(REPLY_PROTOCOL, 5)
         if not id then
             error("No reply from SG server", 0)
         end
         if id == server_id then
             if type(payload) ~= "table" or not payload.dst or not payload.data then
-                error("Invalid file payload from SG server", 0)
+                error(("Invalid file payload for %s"):format(name), 0)
             end
             return payload
         end
@@ -119,23 +118,30 @@ local function write_file(file)
     fs.move(tmp_path, file.dst)
 end
 
+local function run_primary()
+    return shell.run(PRIMARY_PROGRAM)
+end
+
+local function fallback_or_error(message)
+    local reason = tostring(message)
+    if has_required_files() then
+        print(reason)
+        return run_primary()
+    end
+    error(reason, 0)
+end
+
 local server_id = find_server_with_retry()
 
 if not server_id then
-    if has_required_files() then
-        return shell.run(primary_file)
-    end
-    error("Unable to find SGServer on network", 0)
+    return fallback_or_error("Unable to find SGServer on network")
 end
 
 local fetched_files = {}
 for _, name in ipairs(files_to_fetch) do
     local ok, file_or_err = pcall(fetch_file, name, server_id)
     if not ok then
-        if has_required_files() then
-            return shell.run(primary_file)
-        end
-        error(file_or_err, 0)
+        return fallback_or_error(file_or_err)
     end
     fetched_files[#fetched_files + 1] = file_or_err
 end
@@ -144,4 +150,8 @@ for _, file in ipairs(fetched_files) do
     write_file(file)
 end
 
-shell.run(primary_file)
+if is_setup then
+    print("Done!")
+else
+    run_primary()
+end
