@@ -1,6 +1,35 @@
 package.path = package.path .. ";disk/?.lua;disk/?/init.lua"
 local SG_UTILS = require("utils")
-local SG_SETTINGS = require("settings")
+
+local SETTINGS_PATH = "settings.lua"
+local DEFAULT_SETTINGS_CONTENT = 'return { site = nil, fast_dial_rs_side = "left", incom_alarm_rs_side = nil, timeout = 60 }\n'
+
+local function load_or_create_settings()
+    if fs.exists(SETTINGS_PATH) then
+        local ok, config = pcall(require, "settings")
+        if ok then
+            return config
+        end
+        error(config, 0)
+    end
+
+    local handle = fs.open(SETTINGS_PATH, "w")
+    if not handle then
+        error("Missing settings.lua and unable to create it", 0)
+    end
+
+    handle.write(DEFAULT_SETTINGS_CONTENT)
+    handle.close()
+
+    local ok, config = pcall(require, "settings")
+    if not ok then
+        error(config, 0)
+    end
+
+    print("Created default settings.lua; edit it to change site, etc")
+    return config
+end
+local SG_SETTINGS = load_or_create_settings()
 
 local INF_GATE = SG_UTILS.get_inf_gate(false)
 
