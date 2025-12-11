@@ -1,5 +1,36 @@
-local modem_side = "back"
-rednet.open(modem_side)
+local preferred_modem_side = "back"
+
+local function is_wireless_modem(side)
+    if not side or peripheral.getType(side) ~= "modem" then
+        return false
+    end
+
+    local ok, res = pcall(peripheral.call, side, "isWireless")
+    return ok and res == true
+end
+
+local function ensure_modem_open(preferred_side)
+    if is_wireless_modem(preferred_side) then
+        rednet.open(preferred_side)
+        if rednet.isOpen(preferred_side) then
+            return preferred_side
+        end
+    end
+
+    local _, detected_side = peripheral.find("modem", function(_, obj)
+        return obj.isWireless and obj.isWireless()
+    end)
+    if detected_side then
+        rednet.open(detected_side)
+        if rednet.isOpen(detected_side) then
+            return detected_side
+        end
+    end
+
+    error("No wireless/ender modem found; attach a wireless or ender modem", 0)
+end
+
+local modem_side = ensure_modem_open(preferred_modem_side)
 local primary_file = "dial"
 
 local files = { primary_file, "utils", "addresses", "client" }
