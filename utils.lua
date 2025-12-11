@@ -46,18 +46,17 @@ local function get_site(site_override)
         return trimmed_override, normalised_override
     end
 
-    local gate = U.get_inf_gate and U.get_inf_gate(false)
-    if gate then
-        if type(gate.getLocalAddress) == "function" then
-            local home = gate.getLocalAddress()
-            if U.is_valid_address and U.is_valid_address(home) then
-                local match = U.find_gate_by_address and U.find_gate_by_address(home)
-                if match and match.name then
-                    local trimmed = trim_site(match.name)
-                    local normalised = trimmed and string.lower(trimmed)
-                    if normalised then
-                        return trimmed, normalised
-                    end
+    local gate = U.get_inf_gate(false)
+    if gate and type(gate.getLocalAddress) == "function" then
+        local home = gate.getLocalAddress()
+        print("Home Address: " .. home)
+        if U.is_valid_address(home) then
+            local match = U.find_gate_by_address(home)
+            if match and match.name then
+                local trimmed = trim_site(match.name)
+                local normalised = trimmed and string.lower(trimmed)
+                if normalised then
+                    return trimmed, normalised
                 end
             end
         end
