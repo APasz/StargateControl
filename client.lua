@@ -27,9 +27,9 @@ end
 
 ensure_modem_open(CONFIG.side)
 
-local FILES = { CONFIG.primary_file, "utils", "addresses", "client" }
+local FILES = { CONFIG.primary_file, "utils", "addresses", "client", "client_config" }
 -- files which are required to run the primary program, settings.lua should ideally only be fetched on initial setup
-local REQUIRED_FILES = { CONFIG.primary_file, "utils", "addresses", "client", "settings" }
+local REQUIRED_FILES = { CONFIG.primary_file, "utils", "addresses", "client", "client_config", "settings" }
 
 local args = { ... }
 local is_setup = args[1] == "setup"
