@@ -1,6 +1,8 @@
 package.path = package.path .. ";disk/?.lua;disk/?/init.lua"
 local sg_utils = require("utils")
 local sg_settings = require("settings")
+local sg_addresses = sg_utils.filtered_addresses(require("addresses"))
+
 local inf_gate = sg_utils.get_inf_gate(false)
 local inf_rs = sg_utils.get_inf_rs()
 sg_utils.get_inf_mon()
@@ -209,7 +211,7 @@ local function screen()
     sg_utils.reset_outputs(rs)
     sg_utils.prepare_monitor(1, true)
     reset_top()
-    local addr_count = #sg_settings.addresses
+    local addr_count = #sg_addresses
     if addr_count == 0 then
         return
     end
@@ -225,7 +227,7 @@ local function screen()
         local log_pieces = {}
         for col = 1, columns, 1 do
             local idx = (col - 1) * rows + row
-            local gate = sg_settings.addresses[idx]
+            local gate = sg_addresses[idx]
 
             local display_entry = gate and sg_utils.format_address(idx, gate, entry_width, false) or ""
             local log_entry = gate and sg_utils.format_address(idx, gate, nil, true) or ""
@@ -315,7 +317,7 @@ local function handle_selection(sel)
     if type(sel) == "table" and sel.address then
         gate = sel
     elseif type(sel) == "number" then
-        gate = sg_settings.addresses[sel]
+        gate = sg_addresses[sel]
     else
         return
     end
@@ -465,26 +467,7 @@ local function start_incoming_counter(initial_seconds)
     start_timer("incoming", 1)
 end
 
-local function addresses_match(a, b)
-    if type(a) ~= "table" or type(b) ~= "table" or #a ~= #b then
-        return false
-    end
-    for i = 1, #a do
-        if a[i] ~= b[i] then
-            return false
-        end
-    end
-    return true
-end
 
-local function find_gate_by_address(addr)
-    for _, gate in ipairs(sg_settings.addresses or {}) do
-        if addresses_match(addr, gate.address) then
-            return gate
-        end
-    end
-    return { name = "" }
-end
 
 local function resume_active_wormhole()
     local gate = ensure_inf_gate(false)
@@ -511,7 +494,7 @@ local function resume_active_wormhole()
     if outgoing then
         state.outbound = true
         state.gate_id = addr_str
-        local gate = find_gate_by_address(addr)
+        local gate = sg_utils.find_gate_by_address(addr)
         show_status({ "Active wormhole to: " .. gate.name, addr_str })
         local remaining = sg_settings.timeout
         if open_seconds then

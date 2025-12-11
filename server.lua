@@ -6,6 +6,7 @@ local files = {
     dial = { dst = "dial.lua", src = "disk/dial.lua", data = nil },
     alarm = { dst = "alarm.lua", src = "disk/alarm.lua", data = nil },
     utils = { dst = "utils.lua", src = "disk/utils.lua", data = nil },
+    addresses = { dst = "addresses.lua", src = "disk/addresses.lua", data = nil },
     settings = { dst = "settings.lua", src = "disk/settings.lua", data = nil },
 }
 for _, file in pairs(files) do

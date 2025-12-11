@@ -2,8 +2,13 @@ local modem_side = "back"
 rednet.open(modem_side)
 local primary_file = "dial"
 
-local files = { primary_file, "utils" } -- files which are required to run the primary program, settings.lua should idealy only be fetched on intial setup
-local required_files = { primary_file, "utils", "settings" }
+local files = { primary_file, "utils", "addresses", "client" }
+-- files which are required to run the primary program, settings.lua should idealy only be fetched on intial setup
+local required_files = { primary_file, "utils", "settings", "addresses", "client" }
+
+local args = { ... }
+local is_setup = args[1] == "setup"
+local files_to_fetch = is_setup and required_files or files
 
 local function file_on_disk(name)
     return fs.exists(name) or fs.exists(("%s.lua"):format(name))
@@ -93,7 +98,7 @@ if not server_id then
 end
 
 local fetched_files = {}
-for _, name in ipairs(files) do
+for _, name in ipairs(files_to_fetch) do
     local ok, file_or_err = pcall(fetch_file, name, server_id)
     if not ok then
         if has_required_files() then

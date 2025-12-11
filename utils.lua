@@ -1,5 +1,6 @@
 package.path = package.path .. ";disk/?.lua;disk/?/init.lua"
 local sg_settings = require("settings")
+local sg_addresses = require("addresses")
 
 local U = {}
 local inf_gate
@@ -12,6 +13,28 @@ local line_offset = 0
 local mon_size = nil
 local function is_cancelled(cancel_check)
     return cancel_check and cancel_check() == true
+end
+
+local function to_set(list)
+    local t = {}
+    for _, v in ipairs(list or {}) do
+        t[v] = true
+    end
+    return t
+end
+
+function U.filtered_addresses(all)
+    local label = os.getComputerLabel() or ""
+    local site = label:match("DialingPC_(.+)") or label
+    local result = {}
+    for _, g in ipairs(all or {}) do
+        local hide = site and to_set(g.hide_on)[site]
+        local allowed = (not g.only_from) or to_set(g.only_from)[site]
+        if not hide and allowed then
+            table.insert(result, g)
+        end
+    end
+    return result
 end
 
 function U.get_inf_gate(require_gate)
@@ -315,7 +338,7 @@ function U.wait_for_touch()
     end
     while true do
         local _, _, _, y = os.pullEvent("monitor_touch")
-        if y >= 1 and y <= #sg_settings.addresses then
+        if y >= 1 and y <= #sg_addresses then
             U.addr_input = y
             return
         end
@@ -336,6 +359,35 @@ function U.wait_for_disconnect_request()
     end
 end
 
+function U.addresses_match(a, b)
+    if type(a) ~= "table" or type(b) ~= "table" or #a ~= #b then
+        return false
+    end
+    for i = 1, #a do
+        if a[i] ~= b[i] then
+            return false
+        end
+    end
+    return true
+end
+
+function U.lookup_name(addr)
+    for _, g in ipairs(sg_addresses) do
+        if U.addresses_match(addr, g.address) then
+            return g.name
+        end
+    end
+end
+
+function U.find_gate_by_address(addr)
+    for _, gate in ipairs(sg_addresses or {}) do
+        if U.addresses_match(addr, gate.address) then
+            return gate
+        end
+    end
+    return { name = "Manual", address = addr }
+end
+
 function U.get_selection(ev, p2, p3, p4)
     if ev == "key" or ev == "char" then
         local raw = read()
@@ -354,14 +406,14 @@ function U.get_selection(ev, p2, p3, p4)
             addr[7] = 0
         end
         if U.is_valid_address(addr) then
-            return { name = "Manual", address = addr }
+            return { name = U.lookup_name(addr) or "Manual", address = addr }
         end
 
         print("Invalid address. Enter 6-9 numbers separated by spaces/commas/dashes")
         return
     end
 
-    if ev == "monitor_touch" and p4 and p4 >= 1 and p4 <= #sg_settings.addresses then
+    if ev == "monitor_touch" and p4 and p4 >= 1 and p4 <= #sg_addresses then
         return p4
     end
 end
