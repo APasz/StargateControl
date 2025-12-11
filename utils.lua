@@ -19,7 +19,7 @@ function U.ensure_inf_rs()
     return INF_RS
 end
 
-local function normalize_site(name)
+local function normalise_site(name)
     if type(name) ~= "string" then
         return nil
     end
@@ -27,24 +27,13 @@ local function normalize_site(name)
     if trimmed == "" then
         return nil
     end
-    return string.lower(trimmed)
-end
-
-local function to_set(list)
-    local t = {}
-    for _, v in ipairs(list or {}) do
-        local normalized = normalize_site(v)
-        if normalized then
-            t[normalized] = true
-        end
-    end
-    return t
+    return trimmed
 end
 
 local function get_site(override)
-    local normalized_override = normalize_site(override)
-    if normalized_override then
-        return normalized_override
+    local normalised_override = normalise_site(override)
+    if normalised_override then
+        return normalised_override
     end
 
     local label = os.getComputerLabel() or ""
@@ -59,11 +48,22 @@ local function get_site(override)
     }
 
     for _, candidate in ipairs(candidates) do
-        local normalized = normalize_site(candidate)
-        if normalized then
-            return normalized
+        local normalised = normalise_site(candidate)
+        if normalised then
+            return normalised
         end
     end
+end
+
+local function to_set(list)
+    local t = {}
+    for _, v in ipairs(list or {}) do
+        local normalised = normalise_site(v)
+        if normalised then
+            t[normalised] = true
+        end
+    end
+    return t
 end
 
 function U.filtered_addresses(all, site_override)
@@ -72,7 +72,7 @@ function U.filtered_addresses(all, site_override)
     for _, g in ipairs(all or {}) do
         local hide_list = to_set(g.hide_on)
         local allowed_list = to_set(g.only_from)
-        local gate_site = normalize_site(g.name)
+        local gate_site = normalise_site(g.name)
 
         local hide = site and (hide_list[site] or gate_site == site)
         local allowed = (not g.only_from) or (site and allowed_list[site])
@@ -200,8 +200,8 @@ function U.rs_input(side)
         return false
     end
 
-    local normalized = string.lower(side)
-    if normalized == "any" then
+    local normalised = string.lower(side)
+    if normalised == "any" then
         for _, value in pairs(redstone.getSides()) do
             if rs.getInput(value) then
                 return true
@@ -210,7 +210,7 @@ function U.rs_input(side)
         return false
     end
 
-    return rs.getInput(normalized)
+    return rs.getInput(normalised)
 end
 
 local function init_monitor(scale, should_clear)
