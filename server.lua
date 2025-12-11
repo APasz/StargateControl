@@ -10,12 +10,25 @@ local FILES = {
     client = { dst = "client.lua", src = "disk/client.lua", data = nil },
     server = { dst = "server.lua", src = "disk/server.lua", data = nil },
 }
-for _, file in pairs(FILES) do
-    local f = fs.open(file.src, "r")
-    if f then
-        file.data = f.readAll()
-        f.close()
-    else
+
+local function load_file(file)
+    local handle = fs.open(file.src, "r")
+    if not handle then
+        return nil
+    end
+    local data = handle.readAll()
+    handle.close()
+    return data
+end
+
+local function refresh_file(file)
+    local data = load_file(file)
+    file.data = data
+    return data ~= nil
+end
+
+for name, file in pairs(FILES) do
+    if not refresh_file(file) then
         print(("Failed to load %s"):format(file.src))
     end
 end
@@ -25,9 +38,11 @@ print("Stargate server online")
 while true do
     local id, msg, proto = rednet.receive("files_request")
     local file = FILES[msg]
-    if file and file.data then
-        rednet.send(id, file, "files_reply")
-    elseif file and not file.data then
-        print(("Skipping send of %s; data missing"):format(msg))
+    if file then
+        if not refresh_file(file) then
+            print(("Skipping send of %s; data missing"):format(msg))
+        else
+            rednet.send(id, file, "files_reply")
+        end
     end
 end
