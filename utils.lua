@@ -20,7 +20,7 @@ function U.ensure_inf_rs()
     return INF_RS
 end
 
-local function normalise_site(name)
+local function trim_site(name)
     if type(name) ~= "string" then
         return nil
     end
@@ -28,13 +28,22 @@ local function normalise_site(name)
     if trimmed == "" then
         return nil
     end
+    return trimmed
+end
+
+local function normalise_site(name)
+    local trimmed = trim_site(name)
+    if not trimmed then
+        return nil
+    end
     return string.lower(trimmed)
 end
 
 local function get_site(override)
-    local normalised_override = normalise_site(override)
+    local trimmed_override = trim_site(override)
+    local normalised_override = trimmed_override and string.lower(trimmed_override)
     if normalised_override then
-        return normalised_override
+        return trimmed_override, normalised_override
     end
 
     local label = os.getComputerLabel() or ""
@@ -56,9 +65,10 @@ local function get_site(override)
     }
 
     for _, candidate in ipairs(candidates) do
-        local normalised = normalise_site(candidate)
+        local trimmed = trim_site(candidate)
+        local normalised = trimmed and string.lower(trimmed)
         if normalised then
-            return normalised
+            return trimmed, normalised
         end
     end
 
@@ -70,9 +80,10 @@ local function get_site(override)
             if U.is_valid_address and U.is_valid_address(home) then
                 local match = U.find_gate_by_address and U.find_gate_by_address(home)
                 if match and match.name then
-                    local normalised = normalise_site(match.name)
+                    local trimmed = trim_site(match.name)
+                    local normalised = trimmed and string.lower(trimmed)
                     if normalised then
-                        return normalised
+                        return trimmed, normalised
                     end
                 end
             end
@@ -92,13 +103,13 @@ local function to_set(list)
 end
 
 function U.filtered_addresses(all, site_override)
-    local site = get_site(site_override)
+    local display_site, site = get_site(site_override)
     if not site and not WARNED_NO_SITE then
         WARNED_NO_SITE = true
         print("Warning: site is unknown; set computer label (e.g. 'DialingPC_Earth') or settings.site")
     end
-    local display_site = site or "<unknown>"
-    print("Recognised Site: " .. display_site)
+    local display = display_site or site or "<unknown>"
+    print("Recognised Site: " .. display)
     local result = {}
     for _, g in ipairs(all or {}) do
         local hide_list = to_set(g.hide_on)
