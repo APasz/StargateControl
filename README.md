@@ -24,13 +24,15 @@ CC:Tweaked/ComputerCraft scripts for driving a Stargate from a monitor UI, raisi
 
 ## Configure
 ### Addresses (`addresses.lua`)
-Each entry needs a `name` and `address` (7–9 numbers). Optional filters:
+Each entry needs a `site` and `address` (7–9 numbers). Optional filters:
 ```lua
-{ name = "Earth", address = { 30, 18, 9, 5, 25, 14, 31, 15, 0 } },
-{ name = "Moon", address = { 9, 1, 3, 6, 15, 4, 25, 27, 0 }, only_from = { "Earth" }, only_to = { "Earth" } },
-{ name = "Vermilion", address = { 13, 3, 17, 2, 14, 21, 32, 1, 0 }, only_from = { "Earth" }, only_to = { "Earth" }, hide_on = { "Earth" } },
+{ site = "Earth", galaxy = "MilkyWay", intergalaxial = { "*" }, address = { 30, 18, 9, 5, 25, 14, 31, 15, 0 } },
+{ site = "Moon", galaxy = "MilkyWay", address = { 9, 1, 3, 6, 15, 4, 25, 27, 0 }, only_from = { "Earth" }, only_to = { "Earth" } },
+{ site = "Vermilion", galaxy = "MilkyWay", address = { 13, 3, 17, 2, 14, 21, 32, 1, 0 }, only_from = { "Earth" }, only_to = { "Earth" }, hide_on = { "Earth" } },
 ```
 `hide_on` removes an entry when the local site matches; `only_from` allows dialing only from matching sites; `only_to` (on the local site entry) limits which destinations that site may dial. Sites are matched case-insensitively using the dialing PC's label in format of "*_'site'" or override with `settings.site` (when unmatched or unset, filtering is disabled).
+
+`galaxy` tags split the address list into separate networks. The dialer infers the local galaxy from the entry whose `site` matches the computer label/`settings.site`; if the local site or its galaxy is unknown, no galaxy filtering is applied. Cross-galaxy entries must opt-in on both sides via `intergalaxial = { "*", "SiteName" }`: an entry is shown if the local gate's `intergalaxial` list allows the remote site (or `*`) *and* the remote entry's `intergalaxial` list allows the local site (or `*`). Manual dialing stays universal to prevent soft-locks.
 
 ### Dialer settings (`settings.lua`)
 `dial.lua` creates this file if missing with sensible defaults:

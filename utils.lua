@@ -16,9 +16,12 @@ local function is_cancelled(cancel_check)
     return cancel_check and cancel_check() == true
 end
 
-local function normalise_site(name)
+local function normalise_name(name)
+    if type(name) ~= "string" then
+        return nil, nil
+    end
     local trimmed = name:gsub("^%s+", ""):gsub("%s+$", "")
-    if not trimmed then
+    if not trimmed or trimmed == "" then
         return nil, nil
     end
     return trimmed, string.lower(trimmed)
@@ -36,13 +39,13 @@ local function get_site(override)
         local label = os.getComputerLabel()
         override = after_last_underscore(label)
     end
-    return normalise_site(override)
+    return normalise_name(override)
 end
 
 local function to_set(list)
     local t = {}
     for _, v in ipairs(list or {}) do
-        local _, normalised = normalise_site(v)
+        local _, normalised = normalise_name(v)
         if normalised then
             t[normalised] = true
         end
@@ -50,12 +53,44 @@ local function to_set(list)
     return t
 end
 
+local function find_local_gate(all, site)
+    if not site then
+        return nil
+    end
+    for _, g in ipairs(all or {}) do
+        local _, gate_site = normalise_name(g.site)
+        if gate_site == site then
+            return g
+        end
+    end
+end
+
+local function intergalaxial_allowed(local_gate, target_gate)
+    if not local_gate or not target_gate then
+        return false
+    end
+
+    local local_set = to_set(local_gate.intergalaxial)
+    local target_set = to_set(target_gate.intergalaxial)
+    if not next(local_set) or not next(target_set) then
+        return false
+    end
+
+    local _, local_site = normalise_name(local_gate.site)
+    local _, target_site = normalise_name(target_gate.site)
+
+    local local_allows = local_set["*"] or (target_site and local_set[target_site])
+    local target_allows = target_set["*"] or (local_site and target_set[local_site])
+
+    return local_allows and target_allows
+end
+
 local function allowed_destinations(all, site)
     if not site then
         return nil
     end
     for _, g in ipairs(all or {}) do
-        local _, gate_site = normalise_site(g.site)
+        local _, gate_site = normalise_name(g.site)
         if gate_site == site then
             local allowed = to_set(g.only_to)
             if next(allowed) then
@@ -72,19 +107,30 @@ function U.filtered_addresses(all, site_override)
         WARNED_NO_SITE = true
         print("Warning: site is unknown; set PC's name or settings.site to enable filtering")
     end
-    local display = site_display or site_id or "<unknown>"
-    print("Recognised Site: " .. display)
+    local display_text = site_display or site_id or "<unknown>"
+    local local_gate = find_local_gate(all, site_id)
+    local galaxy_display, galaxy_id = normalise_name(local_gate and local_gate.galaxy)
+    local galaxy_text = galaxy_display or galaxy_id or "<any>"
+    print("Recognised Site: " .. display_text .. " @ " .. galaxy_text)
     local allowed_to = allowed_destinations(all, site_id)
     local result = {}
     for _, g in ipairs(all or {}) do
         local hide_list = to_set(g.hide_on)
         local allowed_list = to_set(g.only_from)
-        local _, gate_site = normalise_site(g.site)
+        local _, gate_site = normalise_name(g.site)
+        local _, gate_galaxy = normalise_name(g.galaxy)
 
         local hide = site_id and (hide_list[site_id] or gate_site == site_id)
         local allowed = (not g.only_from) or not site_id or allowed_list[site_id]
         local allowed_dest = (not allowed_to) or (gate_site and allowed_to[gate_site])
-        if not hide and allowed and allowed_dest then
+        local galaxy_ok = true
+        if galaxy_id then
+            if gate_galaxy and gate_galaxy ~= galaxy_id then
+                galaxy_ok = intergalaxial_allowed(local_gate, g)
+            end
+        end
+
+        if not hide and allowed and allowed_dest and galaxy_ok then
             table.insert(result, g)
         end
     end
