@@ -11,57 +11,34 @@ U.addr_input = nil
 local LINE_OFFSET = 0
 local MON_SIZE = nil
 local WARNED_NO_SITE = false
+
 local function is_cancelled(cancel_check)
     return cancel_check and cancel_check() == true
 end
 
-function U.ensure_inf_rs()
-    INF_RS = U.get_inf_rs()
-    return INF_RS
-end
-
-local function trim_site(name)
-    if type(name) ~= "string" then
-        return nil
-    end
-    local trimmed = name:gsub("^%s+", ""):gsub("%s+$", "")
-    if trimmed == "" then
-        return nil
-    end
-    return trimmed
-end
-
 local function normalise_site(name)
-    local trimmed = trim_site(name)
+    local trimmed = name:gsub("^%s+", ""):gsub("%s+$", "")
     if not trimmed then
-        return nil
+        return nil, nil
     end
-    return string.lower(trimmed)
+    return trimmed, string.lower(trimmed)
 end
 
-local function get_site(site_override)
-    local trimmed_override = trim_site(site_override)
-    local normalised_override = trimmed_override and string.lower(trimmed_override)
-    
-    if normalised_override then
-        return trimmed_override, normalised_override
+local function after_last_underscore(str)
+    if type(str) ~= "string" then
+        return nil
     end
+    return str:match(".*_(.*)$")
+end
 
-    local gate = U.get_inf_gate()
-    if gate and type(gate.getLocalAddress) == "function" then
-        local home = gate.getLocalAddress()
-        print("Home Address: " .. home)
-        if U.is_valid_address(home) then
-            local match = U.find_gate_by_address(home)
-            if match and match.name then
-                local trimmed = trim_site(match.name)
-                local normalised = trimmed and string.lower(trimmed)
-                if normalised then
-                    return trimmed, normalised
-                end
-            end
-        end
+local function get_site(override)
+    if not override then
+        local label = os.getComputerLabel()
+        print("DEBUG.label: " .. tostring(label))
+        override = after_last_underscore(label)
+        print("DEBUG.override: " .. tostring(override))
     end
+    return normalise_site(override)
 end
 
 local function to_set(list)
@@ -75,23 +52,41 @@ local function to_set(list)
     return t
 end
 
-function U.filtered_addresses(all, site_override)
-    local display_site, site = get_site(site_override)
-    if not site and not WARNED_NO_SITE then
-        WARNED_NO_SITE = true
-        print("Warning: site is unknown; set settings.site or ensure the gate interface is attached so the home address can be read")
+local function allowed_destinations(all, site)
+    if not site then
+        return nil
     end
-    local display = display_site or site or "<unknown>"
+    for _, g in ipairs(all or {}) do
+        local gate_site = normalise_site(g.name)
+        if gate_site == site then
+            local allowed = to_set(g.only_to)
+            if next(allowed) then
+                return allowed
+            end
+            return nil
+        end
+    end
+end
+
+function U.filtered_addresses(all, site_override)
+    local site_display, site_id = get_site(site_override)
+    if not site_id and not WARNED_NO_SITE then
+        WARNED_NO_SITE = true
+        print("Warning: site is unknown; set PC's name or settings.site to enable filtering")
+    end
+    local display = site_display or site_id or "<unknown>"
     print("Recognised Site: " .. display)
+    local allowed_to = allowed_destinations(all, site_id)
     local result = {}
     for _, g in ipairs(all or {}) do
         local hide_list = to_set(g.hide_on)
         local allowed_list = to_set(g.only_from)
         local gate_site = normalise_site(g.name)
 
-        local hide = site and (hide_list[site] or gate_site == site)
-        local allowed = (not g.only_from) or (site and allowed_list[site])
-        if not hide and allowed then
+        local hide = site_id and (hide_list[site_id] or gate_site == site_id)
+        local allowed = (not g.only_from) or (site_id and allowed_list[site_id])
+        local allowed_dest = (not allowed_to) or allowed_to[gate_site]
+        if not hide and allowed and allowed_dest then
             table.insert(result, g)
         end
     end

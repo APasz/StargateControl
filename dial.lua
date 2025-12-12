@@ -37,7 +37,7 @@ local function load_or_create_settings()
 end
 local SG_SETTINGS = load_or_create_settings()
 
-local INF_GATE = SG_UTILS.get_inf_gate(false)
+local INF_GATE = SG_UTILS.get_inf_gate()
 
 local INF_RS = SG_UTILS.get_inf_rs()
 SG_UTILS.get_inf_mon()
@@ -58,15 +58,8 @@ local STATE = {
 local TIMERS = {}
 local TIMER_LOOKUP = {}
 
-local function ensure_inf_gate(require_gate)
-    INF_GATE = SG_UTILS.get_inf_gate(require_gate == nil and false or require_gate)
-    return INF_GATE
-end
-
-
-
 local function send_incoming_message()
-    local gate = ensure_inf_gate(false)
+    local gate = SG_UTILS.get_inf_gate()
     if not gate or STATE.outbound ~= false then
         return
     end
@@ -81,7 +74,7 @@ local function send_incoming_message()
 end
 
 local function is_wormhole_active()
-    local gate = ensure_inf_gate(false)
+    local gate = SG_UTILS.get_inf_gate()
     if not gate then
         return false
     end
@@ -93,7 +86,7 @@ local function is_wormhole_active()
 end
 
 local function is_wormhole_open()
-    local gate = ensure_inf_gate(false)
+    local gate = SG_UTILS.get_inf_gate()
     if not gate or type(gate.isWormholeOpen) ~= "function" then
         return false
     end
@@ -241,7 +234,7 @@ end
 
 local function screen()
     -- Menu of gate address options
-    local rs = SG_UTILS.ensure_inf_rs()
+    local rs = SG_UTILS.get_inf_rs()
     SG_UTILS.reset_outputs(rs)
     SG_UTILS.prepare_monitor(1, true)
     reset_top()
@@ -292,7 +285,7 @@ local function disconnect_now(mark_early)
     end
     reset_timer()
     clear_incoming_counter()
-    local gate = ensure_inf_gate(false)
+    local gate = SG_UTILS.get_inf_gate()
     if gate and was_connected then
         SG_UTILS.update_line("Disconnecting...")
         if type(gate.disconnectStargate) == "function" then
@@ -481,7 +474,7 @@ local function update_incoming_counter_line()
 end
 
 local function get_open_seconds()
-    local gate = ensure_inf_gate(false)
+    local gate = SG_UTILS.get_inf_gate()
     if not gate or type(gate.getOpenTime) ~= "function" then
         return nil
     end
@@ -502,7 +495,7 @@ local function start_incoming_counter(initial_seconds)
 end
 
 local function resume_active_wormhole()
-    local gate = ensure_inf_gate(false)
+    local gate = SG_UTILS.get_inf_gate()
     if not gate or not is_wormhole_active() then
         return false
     end
@@ -655,7 +648,7 @@ end
 
 local function stargate_chevron_engaged(p2, count, engaged, incoming, symbol)
     if incoming then
-        local rs = SG_UTILS.ensure_inf_rs()
+        local rs = SG_UTILS.get_inf_rs()
         if SG_SETTINGS.incom_alarm_rs_side and rs then
             rs.setOutput(SG_SETTINGS.incom_alarm_rs_side, true)
         end
@@ -687,7 +680,7 @@ local function stargate_outgoing_wormhole(p2, address)
 end
 
 local function stargate_reset(p2, feedback_num, feedback_desc)
-    SG_UTILS.reset_outputs(SG_UTILS.ensure_inf_rs())
+    SG_UTILS.reset_outputs(SG_UTILS.get_inf_rs())
 end
 
 local function stargate_deconstructing_entity(p2, enity_type, entity_name, uuid, went_wrong_way) end

@@ -27,10 +27,10 @@ CC:Tweaked/ComputerCraft scripts for driving a Stargate from a monitor UI, raisi
 Each entry needs a `name` and `address` (7–9 numbers). Optional filters:
 ```lua
 { name = "Earth", address = { 30, 18, 9, 5, 25, 14, 31, 15, 0 } },
-{ name = "Moon", address = { 9, 1, 3, 6, 15, 4, 25, 27, 0 }, only_from = { "Earth" } },
-{ name = "Vermilion", address = { 13, 3, 17, 2, 14, 21, 32, 1, 0 }, only_from = { "Earth" }, hide_on = { "Earth" } },
+{ name = "Moon", address = { 9, 1, 3, 6, 15, 4, 25, 27, 0 }, only_from = { "Earth" }, only_to = { "Earth" } },
+{ name = "Vermilion", address = { 13, 3, 17, 2, 14, 21, 32, 1, 0 }, only_from = { "Earth" }, only_to = { "Earth" }, hide_on = { "Earth" } },
 ```
-`hide_on` removes an entry when the local site matches; `only_from` allows dialing only from matching sites. Sites are matched case-insensitively by `settings.site` or by reading the gate’s home address if the interface supports it.
+`hide_on` removes an entry when the local site matches; `only_from` allows dialing only from matching sites; `only_to` (on the local site entry) limits which destinations that site may dial. Sites are matched case-insensitively using `settings.site`.
 
 ### Dialer settings (`settings.lua`)
 `dial.lua` creates this file if missing with sensible defaults:

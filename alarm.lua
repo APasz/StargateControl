@@ -23,14 +23,14 @@ local stable_input = false
 local input_stable_count = 0
 
 local function set_toggle(active)
-    local rs = SG_UTILS.ensure_inf_rs()
+    local rs = SG_UTILS.get_inf_rs()
     if rs and side_toggle then
         rs.setOutput(side_toggle, active)
     end
 end
 
 local function clear_phase_outputs()
-    local rs = SG_UTILS.ensure_inf_rs()
+    local rs = SG_UTILS.get_inf_rs()
     if not rs then
         return
     end
@@ -40,7 +40,7 @@ local function clear_phase_outputs()
 end
 
 local function set_phase(target)
-    local rs = SG_UTILS.ensure_inf_rs()
+    local rs = SG_UTILS.get_inf_rs()
     if not rs then
         return
     end
