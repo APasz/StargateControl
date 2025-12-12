@@ -359,7 +359,7 @@ local function handle_selection(sel)
 
     local fast = SG_UTILS.rs_input(SG_SETTINGS.fast_dial_rs_side)
     local dialing_type = fast and "Fast Dialing: " or "Dialing: "
-    show_status({ dialing_type .. gate.name, STATE.gate_id })
+    show_status({ dialing_type .. gate.site, STATE.gate_id })
 
     local success, reason, cancelled = dial_with_cancel(gate, fast)
     if success then
@@ -384,7 +384,7 @@ local function handle_selection(sel)
             start_timer("screen", 3)
             return
         end
-        show_top_message_lines({ "Dialed: " .. gate.name, STATE.gate_id })
+        show_top_message_lines({ "Dialed: " .. gate.site, STATE.gate_id })
         STATE.outbound, STATE.connected = true, true
         start_countdown()
         return
@@ -520,7 +520,7 @@ local function resume_active_wormhole()
         STATE.outbound = true
         STATE.gate_id = addr_str
         local gate = SG_UTILS.find_gate_by_address(addr)
-        show_status({ "Active wormhole to: " .. gate.name, addr_str })
+        show_status({ "Active wormhole to: " .. gate.site, addr_str })
         local remaining = SG_SETTINGS.timeout
         if open_seconds then
             remaining = math.max(remaining - open_seconds, 0)

@@ -42,7 +42,7 @@ end
 local function to_set(list)
     local t = {}
     for _, v in ipairs(list or {}) do
-        local normalised = normalise_site(v)
+        local _, normalised = normalise_site(v)
         if normalised then
             t[normalised] = true
         end
@@ -55,7 +55,7 @@ local function allowed_destinations(all, site)
         return nil
     end
     for _, g in ipairs(all or {}) do
-        local gate_site = normalise_site(g.name)
+        local _, gate_site = normalise_site(g.site)
         if gate_site == site then
             local allowed = to_set(g.only_to)
             if next(allowed) then
@@ -79,11 +79,11 @@ function U.filtered_addresses(all, site_override)
     for _, g in ipairs(all or {}) do
         local hide_list = to_set(g.hide_on)
         local allowed_list = to_set(g.only_from)
-        local gate_site = normalise_site(g.name)
+        local _, gate_site = normalise_site(g.site)
 
         local hide = site_id and (hide_list[site_id] or gate_site == site_id)
         local allowed = (not g.only_from) or not site_id or allowed_list[site_id]
-        local allowed_dest = (not allowed_to) or allowed_to[gate_site]
+        local allowed_dest = (not allowed_to) or (gate_site and allowed_to[gate_site])
         if not hide and allowed and allowed_dest then
             table.insert(result, g)
         end
@@ -425,10 +425,10 @@ function U.addresses_match(a, b)
     return true
 end
 
-function U.lookup_name(addr)
+function U.lookup_site(addr)
     for _, g in ipairs(SG_ADDRESSES) do
         if U.addresses_match(addr, g.address) then
-            return g.name
+            return g.site
         end
     end
 end
@@ -439,7 +439,7 @@ function U.find_gate_by_address(addr)
             return gate
         end
     end
-    return { name = "Manual", address = addr }
+    return { site = "Manual", address = addr }
 end
 
 function U.get_selection(ev, p2, p3, p4)
@@ -460,7 +460,7 @@ function U.get_selection(ev, p2, p3, p4)
             addr[7] = 0
         end
         if U.is_valid_address(addr) then
-            return { name = U.lookup_name(addr) or "Manual", address = addr }
+            return { name = U.lookup_site(addr) or "Manual", address = addr }
         end
 
         print("Invalid address. Enter 6-9 numbers separated by spaces/commas/dashes")
@@ -513,7 +513,7 @@ function U.format_address(idx, gate, max_width, with_number)
         return ""
     end
 
-    local base = gate.name or ""
+    local base = gate.site or ""
     local text = with_number == false and base or (idx .. " = " .. base)
     if not max_width or #text <= max_width then
         return text
