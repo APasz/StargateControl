@@ -111,7 +111,7 @@ function U.filtered_addresses(all, site_override)
     local local_gate = find_local_gate(all, site_id)
     local galaxy_display, galaxy_id = normalise_name(local_gate and local_gate.galaxy)
     local galaxy_text = galaxy_display or galaxy_id or "<any>"
-    print("Recognised Site: " .. display_text .. " @ " .. galaxy_text)
+    print("Site: " .. display_text .. " @ " .. galaxy_text)
     local allowed_to = allowed_destinations(all, site_id)
     local result = {}
     for _, g in ipairs(all or {}) do
