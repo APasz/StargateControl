@@ -30,7 +30,7 @@ Each entry needs a `name` and `address` (7–9 numbers). Optional filters:
 { name = "Moon", address = { 9, 1, 3, 6, 15, 4, 25, 27, 0 }, only_from = { "Earth" }, only_to = { "Earth" } },
 { name = "Vermilion", address = { 13, 3, 17, 2, 14, 21, 32, 1, 0 }, only_from = { "Earth" }, only_to = { "Earth" }, hide_on = { "Earth" } },
 ```
-`hide_on` removes an entry when the local site matches; `only_from` allows dialing only from matching sites; `only_to` (on the local site entry) limits which destinations that site may dial. Sites are matched case-insensitively using `settings.site`.
+`hide_on` removes an entry when the local site matches; `only_from` allows dialing only from matching sites; `only_to` (on the local site entry) limits which destinations that site may dial. Sites are matched case-insensitively using the dialing PC's label in format of "*_'site'" or override with `settings.site` (when unmatched or unset, filtering is disabled).
 
 ### Dialer settings (`settings.lua`)
 `dial.lua` creates this file if missing with sensible defaults:

@@ -34,9 +34,7 @@ end
 local function get_site(override)
     if not override then
         local label = os.getComputerLabel()
-        print("DEBUG.label: " .. tostring(label))
         override = after_last_underscore(label)
-        print("DEBUG.override: " .. tostring(override))
     end
     return normalise_site(override)
 end
@@ -84,7 +82,7 @@ function U.filtered_addresses(all, site_override)
         local gate_site = normalise_site(g.name)
 
         local hide = site_id and (hide_list[site_id] or gate_site == site_id)
-        local allowed = (not g.only_from) or (site_id and allowed_list[site_id])
+        local allowed = (not g.only_from) or not site_id or allowed_list[site_id]
         local allowed_dest = (not allowed_to) or allowed_to[gate_site]
         if not hide and allowed and allowed_dest then
             table.insert(result, g)
