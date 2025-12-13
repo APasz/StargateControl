@@ -11,6 +11,7 @@ U.addr_input = nil
 local LINE_OFFSET = 0
 local MON_SIZE = nil
 local WARNED_NO_SITE = false
+local DEBUG_SELECTION = true
 
 local function is_cancelled(cancel_check)
     return cancel_check and cancel_check() == true
@@ -526,6 +527,11 @@ end
 function U.get_selection(ev, p2, p3, p4, addresses)
     local list = addresses or SG_ADDRESSES
     local addr_count = #(list or {})
+    local function debug(msg)
+        if DEBUG_SELECTION then
+            print(msg)
+        end
+    end
 
     if ev == "key" or ev == "char" then
         local raw = read()
@@ -553,28 +559,34 @@ function U.get_selection(ev, p2, p3, p4, addresses)
 
     if ev == "monitor_touch" then
         if addr_count <= 0 then
+            debug("[touch] no addresses to select")
             return
         end
 
         local x, y = p3, p4
         if not (x and y) then
+            debug("[touch] missing coordinates: x=" .. tostring(x) .. " y=" .. tostring(y))
             return
         end
 
         local layout = U.compute_menu_layout(addr_count)
         if not layout or y < 1 or y > layout.rows or x < 1 or x > layout.usable_width then
+            debug(string.format("[touch] outside menu area: x=%s y=%s rows=%s cols=%s usable_width=%s", tostring(x), tostring(y), tostring(layout and layout.rows), tostring(layout and layout.columns), tostring(layout and layout.usable_width)))
             return
         end
 
         local col = math.floor((x - 1) / layout.col_width) + 1
         if col < 1 or col > layout.columns then
+            debug(string.format("[touch] column out of range: col=%s cols=%s x=%s col_width=%s", tostring(col), tostring(layout.columns), tostring(x), tostring(layout.col_width)))
             return
         end
 
         local idx = (col - 1) * layout.rows + y
         if idx >= 1 and idx <= addr_count then
+            debug(string.format("[touch] selected idx=%d from x=%d y=%d col=%d rows=%d cols=%d col_width=%d usable=%d", idx, x, y, col, layout.rows, layout.columns, layout.col_width, layout.usable_width))
             return idx
         end
+        debug(string.format("[touch] idx out of range: idx=%s addr_count=%s x=%s y=%s", tostring(idx), tostring(addr_count), tostring(x), tostring(y)))
     end
 end
 
