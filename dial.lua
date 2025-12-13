@@ -581,6 +581,7 @@ local function resume_active_wormhole()
         STATE.gate_id = addr_str ~= "-" and addr_str or "Incoming"
         show_incoming_banner()
         start_incoming_counter(open_seconds)
+        send_env_status_message()
     end
 
     return true
@@ -624,6 +625,7 @@ local function handle_timer_event(timer_id)
     if name == "incoming" then
         STATE.incoming_seconds = (STATE.incoming_seconds or 0) + 1
         update_incoming_counter_line()
+        send_env_status_message()
         start_timer("incoming", 1)
         return
     end
