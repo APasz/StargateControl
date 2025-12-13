@@ -559,12 +559,17 @@ local function show_incoming_banner()
 
     local top_bottom = string.rep("!", width)
 
-    local middle = make_banner(width, "Incoming Wormhole", "!")
+    local middle = make_banner(width, "Incoming", "!")
+    if #middle > width then
+        middle = string.sub(middle, 1, width)
+    end
 
-    local lines_written = SG_UTILS.write_lines({ top_bottom, middle, top_bottom }, 1) or 3
+    SG_UTILS.update_line(top_bottom, 1)
+    SG_UTILS.update_line(middle, 2)
+    SG_UTILS.update_line(top_bottom, 3)
     SG_UTILS.reset_text_color()
-    STATE.top_lines = math.max(lines_written, 1)
-    SG_UTILS.set_line_offset(math.max(STATE.top_lines - 1, 0))
+    STATE.top_lines = 3
+    SG_UTILS.set_line_offset(STATE.top_lines - 1)
 end
 
 local function update_incoming_counter_line()
