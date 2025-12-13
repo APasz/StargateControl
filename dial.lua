@@ -108,18 +108,26 @@ local function show_remote_env_status(message)
 
     local text
     if message == "env_safe" then
-        text = "Remote Environment: SAFE"
+        text = "Environment: SAFE"
+        color = colors.blue
     elseif message == "env_unsafe" then
-        text = "Remote Environment: UNSAFE"
+        text = "Environment: UNSAFE"
+        color = colors.red
     elseif message == "env_unknown" then
-        text = "Remote Environment: UNKNOWN"
+        text = "Environment: UNKNOWN"
     end
 
     if not text then
         return false
     end
 
+    if color then
+        SG_UTILS.set_text_color(color)
+    end
     SG_UTILS.update_line(text, 4)
+    if color then
+        SG_UTILS.reset_text_color()
+    end
     return true
 end
 
