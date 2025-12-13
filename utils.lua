@@ -533,6 +533,8 @@ function U.get_selection(ev, p2, p3, p4, addresses)
         end
     end
 
+    debug(string.format("[event] ev=%s p2=%s p3=%s p4=%s addr_count=%s", tostring(ev), tostring(p2), tostring(p3), tostring(p4), tostring(addr_count)))
+
     if ev == "key" or ev == "char" then
         local raw = read()
         local numeric_sel = tonumber(raw)
