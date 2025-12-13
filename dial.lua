@@ -115,6 +115,7 @@ local function show_remote_env_status(message)
         color = colors.red
     elseif message == "env_unknown" then
         text = "Environment: UNKNOWN"
+        color = colors.yellow
     end
 
     if not text then
@@ -123,6 +124,8 @@ local function show_remote_env_status(message)
 
     if color then
         SG_UTILS.set_text_color(color)
+    else
+        SG_UTILS.reset_text_color()
     end
     SG_UTILS.update_line(text, 4)
     if color then
