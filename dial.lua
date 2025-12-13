@@ -74,11 +74,18 @@ local function send_incoming_message()
 end
 
 local function get_env_status_message()
-    if SG_SETTINGS.rs_safe_env == nil then
+    local setting = SG_SETTINGS.rs_safe_env
+    if setting == true then
+        return "env_safe"
+    end
+    if setting == false then
+        return "env_unsafe"
+    end
+    if setting == nil then
         return "env_unknown"
     end
 
-    local safe_env = SG_UTILS.rs_input(SG_SETTINGS.rs_safe_env)
+    local safe_env = SG_UTILS.rs_input(setting)
     return safe_env and "env_safe" or "env_unsafe"
 end
 

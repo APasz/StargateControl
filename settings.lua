@@ -6,7 +6,7 @@ return {
     rs_income_alarm = nil,
     -- side to output redstone signal during incoming wormhole
     rs_safe_env = nil,
-    -- side to detect redstone signal if the local environment is safe
+    -- side to detect redstone signal if the local environment is safe (set to true to force always-safe)
     timeout = 60,
     -- time until wormhole is autoclosed
 }
