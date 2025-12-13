@@ -53,6 +53,7 @@ local STATE = {
     disconnected_early = false,
     waiting_disconnect = false,
     incoming_seconds = 0,
+    pending_timeout = nil,
     top_lines = 0,
 }
 local TIMERS = {}
@@ -154,6 +155,17 @@ local function is_wormhole_open()
     return gate.isWormholeOpen() == true
 end
 
+local function is_wormhole_established()
+    local gate = SG_UTILS.get_inf_gate()
+    if not gate then
+        return false
+    end
+    if type(gate.isStargateConnected) == "function" then
+        return gate.isStargateConnected() == true
+    end
+    return is_wormhole_open()
+end
+
 local function reset_top()
     SG_UTILS.reset_line_offset()
     STATE.top_lines = 0
@@ -252,7 +264,10 @@ end
 
 local function reset_timer()
     cancel_timer("countdown")
+    cancel_timer("countdown_wait")
+    STATE.pending_timeout = nil
     STATE.timeout_remaining = nil
+    SG_UTILS.update_line("", 2)
 end
 
 local function clear_incoming_counter()
@@ -269,6 +284,23 @@ local function start_countdown(remaining)
     end
     STATE.timeout_remaining = timeout
     start_timer("countdown", 1)
+end
+
+local function start_countdown_when_established(remaining)
+    -- Defer the disconnect timer until the wormhole is fully connected.
+    if TIMERS.countdown or TIMERS.countdown_wait then
+        return
+    end
+    clear_incoming_counter()
+    reset_timer()
+    STATE.pending_timeout = remaining
+    if is_wormhole_established() then
+        STATE.pending_timeout = nil
+        start_countdown(remaining)
+        return
+    end
+
+    start_timer("countdown_wait", 0.25)
 end
 
 local function clear_screen_timer()
@@ -447,7 +479,7 @@ local function handle_selection(sel)
         end
         show_top_message_lines({ "Dialed: " .. gate.site, STATE.gate_id })
         STATE.outbound, STATE.connected = true, true
-        start_countdown()
+        start_countdown_when_established()
         return
     end
 
@@ -586,7 +618,7 @@ local function resume_active_wormhole()
         if open_seconds then
             remaining = math.max(remaining - open_seconds, 0)
         end
-        start_countdown(remaining)
+        start_countdown_when_established(remaining)
     else
         STATE.outbound = false
         STATE.gate_id = addr_str ~= "-" and addr_str or "Incoming"
@@ -621,6 +653,23 @@ local function handle_timer_event(timer_id)
         SG_UTILS.update_line("Stargate Disconnect in " .. STATE.timeout_remaining, 2)
         STATE.timeout_remaining = STATE.timeout_remaining - 1
         start_timer("countdown", 1)
+        return
+    end
+
+    if name == "countdown_wait" then
+        -- Poll until the wormhole is established, abort if it closes.
+        if not (STATE.connected and STATE.outbound == true and is_wormhole_active()) then
+            reset_timer()
+            return
+        end
+
+        if is_wormhole_established() then
+            local pending = STATE.pending_timeout
+            STATE.pending_timeout = nil
+            start_countdown(pending)
+        else
+            start_timer("countdown_wait", 0.25)
+        end
         return
     end
 
@@ -749,7 +798,7 @@ local function stargate_outgoing_wormhole(p2, address)
     if not STATE.gate_id then
         STATE.gate_id = SG_UTILS.address_to_string(address)
     end
-    start_countdown()
+    start_countdown_when_established()
 end
 
 local function stargate_reset(p2, feedback_num, feedback_desc)
