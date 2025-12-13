@@ -418,9 +418,10 @@ local function handle_selection(sel)
     STATE.gate_id = SG_UTILS.address_to_string(gate.address)
     STATE.disconnected_early = false
 
+    local site = gate.site or gate.name or "<unknown>"
     local fast = SG_UTILS.rs_input(SG_SETTINGS.rs_fast_dial)
     local dialing_type = fast and "Fast Dialing: " or "Dialing: "
-    show_status({ dialing_type .. STATE.gate.site, STATE.gate_id })
+    show_status({ dialing_type .. site, STATE.gate_id })
 
     local success, reason, cancelled = dial_with_cancel(gate, fast)
     if success then

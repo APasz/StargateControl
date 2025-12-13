@@ -544,7 +544,6 @@ function U.get_selection(ev, p2, p3, p4, addresses)
             addr[7] = 0
         end
         if U.is_valid_address(addr) then
-            -- Normalise manual input to match the stored gate shape
             return { site = U.lookup_site(addr) or "Manual", address = addr }
         end
 
