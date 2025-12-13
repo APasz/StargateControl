@@ -488,6 +488,41 @@ function U.find_gate_by_address(addr)
     return { site = "Manual", address = addr }
 end
 
+function U.compute_menu_layout(addr_count)
+    local mon_width, mon_height = U.get_monitor_size(32, 15)
+    local usable_width = math.max(mon_width - 1, 1)
+
+    local min_col_width = 6
+    local comfy_max_cols = math.max(1, math.min(math.floor(usable_width / min_col_width), addr_count))
+    local hard_max_cols = math.max(1, math.min(usable_width, addr_count))
+
+    local columns = 1
+    local rows = math.ceil(addr_count / columns)
+
+    while rows > mon_height and columns < comfy_max_cols do
+        columns = columns + 1
+        rows = math.ceil(addr_count / columns)
+    end
+
+    while rows > mon_height and columns < hard_max_cols do
+        columns = columns + 1
+        rows = math.ceil(addr_count / columns)
+    end
+
+    local col_width = math.max(math.floor(usable_width / columns), 1)
+    local entry_width = math.max(col_width - 1, 1)
+
+    return {
+        columns = columns,
+        rows = rows,
+        col_width = col_width,
+        entry_width = entry_width,
+        width = mon_width,
+        height = mon_height,
+        usable_width = usable_width,
+    }
+end
+
 function U.get_selection(ev, p2, p3, p4)
     if ev == "key" or ev == "char" then
         local raw = read()
@@ -513,8 +548,26 @@ function U.get_selection(ev, p2, p3, p4)
         return
     end
 
-    if ev == "monitor_touch" and p4 and p4 >= 1 and p4 <= #SG_ADDRESSES then
-        return p4
+    if ev == "monitor_touch" then
+        local x, y = p3, p4
+        if not (x and y) then
+            return
+        end
+
+        local layout = U.compute_menu_layout(#SG_ADDRESSES)
+        if not layout or y < 1 or y > layout.rows or x < 1 or x > layout.usable_width then
+            return
+        end
+
+        local col = math.floor((x - 1) / layout.col_width) + 1
+        if col < 1 or col > layout.columns then
+            return
+        end
+
+        local idx = (col - 1) * layout.rows + y
+        if idx >= 1 and idx <= #SG_ADDRESSES then
+            return idx
+        end
     end
 end
 

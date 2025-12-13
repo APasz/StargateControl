@@ -200,41 +200,6 @@ local function show_status(lines, scale)
     end
 end
 
-local function compute_menu_layout(addr_count)
-    local mon_width, mon_height = SG_UTILS.get_monitor_size(32, 15)
-    local usable_width = math.max(mon_width - 1, 1)
-
-    local min_col_width = 6
-    local comfy_max_cols = math.max(1, math.min(math.floor(usable_width / min_col_width), addr_count))
-    local hard_max_cols = math.max(1, math.min(usable_width, addr_count))
-
-    local columns = 1
-    local rows = math.ceil(addr_count / columns)
-
-    while rows > mon_height and columns < comfy_max_cols do
-        columns = columns + 1
-        rows = math.ceil(addr_count / columns)
-    end
-
-    while rows > mon_height and columns < hard_max_cols do
-        columns = columns + 1
-        rows = math.ceil(addr_count / columns)
-    end
-
-    local col_width = math.max(math.floor(usable_width / columns), 1)
-    local entry_width = math.max(col_width - 1, 1)
-
-    return {
-        columns = columns,
-        rows = rows,
-        col_width = col_width,
-        entry_width = entry_width,
-        width = mon_width,
-        height = mon_height,
-        usable_width = usable_width,
-    }
-end
-
 local function cancel_timer(name)
     local id = TIMERS[name]
     if id then
@@ -336,7 +301,7 @@ local function screen()
         return
     end
 
-    local layout = compute_menu_layout(addr_count)
+    local layout = SG_UTILS.compute_menu_layout(addr_count)
     local columns = layout.columns
     local rows = layout.rows
     local col_width = layout.col_width
