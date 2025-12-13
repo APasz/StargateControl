@@ -4,9 +4,15 @@ local SG_UTILS = require("utils")
 local SETTINGS_PATH = "settings.lua"
 local DEFAULT_SETTINGS_CONTENT = [[return {
     site = nil,
+    -- optional site override for address filtering
     rs_fast_dial = "left",
+    -- side to detect redstone signal meaning to fast dial
     rs_income_alarm = nil,
+    -- side to output redstone signal during incoming wormhole
+    rs_safe_env = nil,
+    -- side to detect redstone signal if the local environment is safe (set to true to force always-safe)
     timeout = 60,
+    -- time until wormhole is autoclosed
 }
 ]]
 
@@ -154,18 +160,6 @@ local function is_wormhole_open()
     end
     return gate.isWormholeOpen() == true
 end
-
-local function is_wormhole_established()
-    local gate = SG_UTILS.get_inf_gate()
-    if not gate then
-        return false
-    end
-    if type(gate.isStargateConnected) == "function" then
-        return gate.isStargateConnected() == true
-    end
-    return is_wormhole_open()
-end
-
 local function reset_top()
     SG_UTILS.reset_line_offset()
     STATE.top_lines = 0
@@ -262,6 +256,10 @@ local function timer_name(id)
     return TIMER_LOOKUP[id]
 end
 
+local function show_disconnect_line(value)
+    SG_UTILS.update_line("Stargate Disconnect in " .. tostring(value), 2)
+end
+
 local function reset_timer()
     cancel_timer("countdown")
     cancel_timer("countdown_wait")
@@ -283,6 +281,7 @@ local function start_countdown(remaining)
         timeout = remaining
     end
     STATE.timeout_remaining = timeout
+    show_disconnect_line(STATE.timeout_remaining)
     start_timer("countdown", 1)
 end
 
@@ -294,12 +293,13 @@ local function start_countdown_when_established(remaining)
     clear_incoming_counter()
     reset_timer()
     STATE.pending_timeout = remaining
-    if is_wormhole_established() then
+    if is_wormhole_open() then
         STATE.pending_timeout = nil
         start_countdown(remaining)
         return
     end
 
+    show_disconnect_line("X")
     start_timer("countdown_wait", 0.25)
 end
 
@@ -650,7 +650,7 @@ local function handle_timer_event(timer_id)
             return
         end
 
-        SG_UTILS.update_line("Stargate Disconnect in " .. STATE.timeout_remaining, 2)
+        show_disconnect_line(STATE.timeout_remaining)
         STATE.timeout_remaining = STATE.timeout_remaining - 1
         start_timer("countdown", 1)
         return
@@ -663,7 +663,7 @@ local function handle_timer_event(timer_id)
             return
         end
 
-        if is_wormhole_established() then
+        if is_wormhole_open() then
             local pending = STATE.pending_timeout
             STATE.pending_timeout = nil
             start_countdown(pending)
