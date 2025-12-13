@@ -711,7 +711,7 @@ local function handle_user_input(ev, p2, p3, p4)
         return
     end
 
-    local sel = SG_UTILS.get_selection(ev, p2, p3, p4)
+    local sel = SG_UTILS.get_selection(ev, p2, p3, p4, SG_ADDRESSES)
     if sel then
         handle_selection(sel)
     end

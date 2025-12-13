@@ -523,7 +523,10 @@ function U.compute_menu_layout(addr_count)
     }
 end
 
-function U.get_selection(ev, p2, p3, p4)
+function U.get_selection(ev, p2, p3, p4, addresses)
+    local list = addresses or SG_ADDRESSES
+    local addr_count = #(list or {})
+
     if ev == "key" or ev == "char" then
         local raw = read()
         local numeric_sel = tonumber(raw)
@@ -549,12 +552,16 @@ function U.get_selection(ev, p2, p3, p4)
     end
 
     if ev == "monitor_touch" then
+        if addr_count <= 0 then
+            return
+        end
+
         local x, y = p3, p4
         if not (x and y) then
             return
         end
 
-        local layout = U.compute_menu_layout(#SG_ADDRESSES)
+        local layout = U.compute_menu_layout(addr_count)
         if not layout or y < 1 or y > layout.rows or x < 1 or x > layout.usable_width then
             return
         end
@@ -565,7 +572,7 @@ function U.get_selection(ev, p2, p3, p4)
         end
 
         local idx = (col - 1) * layout.rows + y
-        if idx >= 1 and idx <= #SG_ADDRESSES then
+        if idx >= 1 and idx <= addr_count then
             return idx
         end
     end
