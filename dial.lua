@@ -692,8 +692,6 @@ local function handle_terminate()
 end
 
 local function handle_user_input(ev, p2, p3, p4)
-    print(string.format("[handle_user_input] ev=%s p2=%s p3=%s p4=%s screen_timer=%s connected=%s outbound=%s", tostring(ev), tostring(p2), tostring(p3), tostring(p4), tostring(TIMERS.screen), tostring(STATE.connected), tostring(STATE.outbound)))
-
     if TIMERS.screen then
         clear_screen_timer()
         if not STATE.connected and STATE.outbound ~= false then
@@ -828,7 +826,6 @@ local stargate_clear_screen_events = {
 
 local function dispatch_event(event)
     local name = event[1]
-    print(string.format("[dispatch_event] name=%s args=%s", tostring(name), textutils and textutils.serialize(event) or "n/a"))
     local handler = user_event_handlers[name]
     if handler then
         return handler(table.unpack(event, 2))
@@ -847,14 +844,15 @@ if not resume_active_wormhole() then
     screen()
 end
 while true do
-    local event = os.pullEventRaw("terminate")
-    if event == "terminate" then
-        SG_UTILS.clear_all_lines()
-        SG_UTILS.show_top_message("UNAVAILABLE")
-        break
-    end
-    local should_stop = dispatch_event({ os.pullEvent() })
-    if should_stop then
-        break
+    local event = { os.pullEventRaw() }
+    if event[1] == "terminate" then
+        if handle_terminate() then
+            break
+        end
+    else
+        local should_stop = dispatch_event(event)
+        if should_stop then
+            break
+        end
     end
 end
