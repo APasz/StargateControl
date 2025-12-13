@@ -126,7 +126,7 @@ function U.filtered_addresses(all, site_override)
         local galaxy_ok = true
         if galaxy_id then
             if gate_galaxy and gate_galaxy ~= galaxy_id then
-                galaxy_ok = intergalaxial_allowed(local_gate, g)
+                galaxy_ok = intergalaxial_allowed(local_gate, g) or false
             end
         end
 
@@ -660,8 +660,9 @@ function U.dial_fast(gate, cancel_check)
         end
         local symbol = addr[chevron]
 
-        interface.engageSymbol(symbol)
+        local feedback_code, feedback_msg = interface.engageSymbol(symbol)
         U.update_line("Encoded: " .. symbol, 2)
+        U.update_line(tostring(feedback_code) .. " | " .. tostring(feedback_msg), 3)
         if is_cancelled(cancel_check) then
             U.reset_stargate()
             return false, "cancelled"
