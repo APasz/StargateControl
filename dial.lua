@@ -380,7 +380,10 @@ local function disconnect_now(mark_early)
     clear_incoming_counter()
     local gate = SG_UTILS.get_inf_gate()
     if gate and was_connected then
-        SG_UTILS.update_line("Disconnecting...")
+        SG_UTILS.update_line("Disconnecting...", 2)
+        SG_UTILS.update_line("", 3)
+        SG_UTILS.update_line("", 4)
+        SG_UTILS.update_line("", 5)
         if type(gate.disconnectStargate) == "function" then
             gate.disconnectStargate()
         else
