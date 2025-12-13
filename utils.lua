@@ -640,6 +640,35 @@ function U.pad_to_width(text, width)
     return text .. string.rep(" ", width - #text)
 end
 
+local function wait_for_fast_engage(interface, symbol, expected_chevron, cancel_check)
+    local has_current = type(interface.isCurrentSymbol) == "function"
+    local has_chevrons = type(interface.getChevronsEngaged) == "function"
+    if not has_current and not has_chevrons then
+        return true
+    end
+
+    for _ = 1, 60, 1 do
+        if is_cancelled(cancel_check) then
+            return false
+        end
+
+        local current_ok = has_current and interface.isCurrentSymbol(symbol)
+        local engaged_ok = false
+        if has_chevrons and expected_chevron then
+            local engaged = interface.getChevronsEngaged()
+            engaged_ok = type(engaged) == "number" and engaged >= expected_chevron
+        end
+
+        if current_ok or engaged_ok then
+            return true
+        end
+
+        sleep(0.05)
+    end
+
+    return true
+end
+
 function U.dial_fast(gate, cancel_check)
     local interface = U.get_inf_gate()
     if not interface then
@@ -660,10 +689,10 @@ function U.dial_fast(gate, cancel_check)
         end
         local symbol = addr[chevron]
 
-        local feedback_code, feedback_msg = interface.engageSymbol(symbol)
+        interface.engageSymbol(symbol)
         U.update_line("Encoded: " .. symbol, 2)
-        U.update_line(tostring(feedback_code) .. " | " .. tostring(feedback_msg), 3)
-        if is_cancelled(cancel_check) then
+        local engaged = wait_for_fast_engage(interface, symbol, chevron, cancel_check)
+        if not engaged or is_cancelled(cancel_check) then
             U.reset_stargate()
             return false, "cancelled"
         end
