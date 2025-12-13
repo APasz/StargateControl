@@ -844,6 +844,11 @@ if not resume_active_wormhole() then
     screen()
 end
 while true do
+    local event = os.pullEventRaw("terminate")
+    if event == "terminate" then
+        SG_UTILS.clear_all_lines()
+        SG_UTILS.show_top_message("UNAVAILABLE")
+    end
     local should_stop = dispatch_event({ os.pullEvent() })
     if should_stop then
         break
