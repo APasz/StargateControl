@@ -505,10 +505,17 @@ end
 
 local function make_banner(width, phrase, pad)
     pad = pad or "!"
+    phrase = phrase or ""
+    width = math.max(width or 1, 1)
+
+    if width <= 2 then
+        return string.rep(pad, width)
+    end
 
     local plen = #phrase
     if width < plen + 2 then
-        return phrase
+        phrase = string.sub(phrase, 1, width - 2)
+        plen = #phrase
     end
 
     local n = math.floor(width / (plen + 2))
