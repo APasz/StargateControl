@@ -1,10 +1,12 @@
 return {
     site = nil,
     -- optional site override for address filtering
-    fast_dial_rs_side = "left",
+    rs_fast_dial = "left",
     -- side to detect redstone signal meaning to fast dial
-    incom_alarm_rs_side = nil,
+    rs_income_alarm = nil,
     -- side to output redstone signal during incoming wormhole
+    rs_safe_env = nil,
+    -- side to detect redstone signal if the local environment is safe
     timeout = 60,
     -- time until wormhole is autoclosed
 }

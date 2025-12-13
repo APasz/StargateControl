@@ -24,7 +24,7 @@ CC:Tweaked/ComputerCraft scripts for driving a Stargate from a monitor UI, raisi
 
 ## Configure
 ### Addresses (`addresses.lua`)
-Each entry needs a `site` and `address` (7–9 numbers). Optional filters:
+Each entry needs a `site`, `galaxy`, and `address` (7–9 numbers). Optional filters: `hide_on`, `only_from`, `only_to`, `intergalaxial`
 ```lua
 { site = "Earth", galaxy = "MilkyWay", intergalaxial = { "*" }, address = { 30, 18, 9, 5, 25, 14, 31, 15, 0 } },
 { site = "Moon", galaxy = "MilkyWay", address = { 9, 1, 3, 6, 15, 4, 25, 27, 0 }, only_from = { "Earth" }, only_to = { "Earth" } },
@@ -38,10 +38,11 @@ Each entry needs a `site` and `address` (7–9 numbers). Optional filters:
 `dial.lua` creates this file if missing with sensible defaults:
 ```lua
 return {
-    site = nil,             -- optional site name for address filtering
-    fast_dial_rs_side = "left", -- redstone input: high = fast-dial symbols; nil to ignore
-    incom_alarm_rs_side = nil,  -- redstone output while an incoming wormhole is active
-    timeout = 60,           -- seconds before outbound wormholes auto-disconnect
+    site = nil,            -- optional site name for address filtering
+    rs_fast_dial = "left", -- redstone input: high = fast-dial symbols; nil to ignore
+    rs_income_alarm = nil, -- redstone output while an incoming wormhole is active
+    rs_safe_env = nil,     -- side to detect redstone signal if the local environment is safe
+    timeout = 60,          -- seconds before outbound wormholes auto-disconnect
 }
 ```
 
@@ -58,13 +59,13 @@ return {
 - Make sure `dial.lua`, `utils.lua`, `addresses.lua`, and `settings.lua` are on the controller computer (or run `client setup` to fetch them).
 - Start with `dial`. The monitor shows the address list; tap a row or type its number to dial.
 - Manual entry: type numbers separated by spaces/commas/dashes; 6 symbols auto-append `0` as origin.
-- Fast/slow dialing is chosen by the `fast_dial_rs_side` input; the bottom-right corner shows `>` when fast-dial is active, `#` otherwise.
+- Fast/slow dialing is chosen by the `rs_fast_dial` input; the bottom-right corner shows `>` when fast-dial is active, `#` otherwise.
 - Outbound wormholes display a countdown and auto-disconnect after `timeout` seconds; tap the monitor to drop early.
-- Incoming wormholes paint a red banner, count open time, raise `incom_alarm_rs_side` if set, and let you tap the monitor to send `sg_disconnect` to the remote gate when supported.
+- Incoming wormholes paint a red banner, count open time, raise `rs_income_alarm` if set, and let you tap the monitor to send `sg_disconnect` to the remote gate when supported.
 - If the computer reboots while a wormhole is open, the UI resumes and shows the active connection.
 
 ## Alarm (`alarm.lua`)
-- Intended for a separate computer/monitor fed by the dialer’s `incom_alarm_rs_side` (or any redstone input).
+- Intended for a separate computer/monitor fed by the dialer’s `rs_income_alarm` (or any redstone input).
 - Inputs: `side_input` (default `bottom`) starts/stops the alarm. Outputs: `side_toggle` (default `front`) for the siren plus cycling lights on `phase_sides` (`left`, `top`, `right`).
 - On-screen buttons: `[ TOGGLE SIREN ]` toggles the siren output; `[ CANCEL ALARM ]` silences while the input stays high. Debounce/flash timings sit at the top of the file.
 

@@ -4,8 +4,8 @@ local SG_UTILS = require("utils")
 local SETTINGS_PATH = "settings.lua"
 local DEFAULT_SETTINGS_CONTENT = [[return {
     site = nil,
-    fast_dial_rs_side = "left",
-    incom_alarm_rs_side = nil,
+    rs_fast_dial = "left",
+    rs_income_alarm = nil,
     timeout = 60,
 }
 ]]
@@ -71,6 +71,49 @@ local function send_incoming_message()
     if not ok then
         SG_UTILS.update_line("Send Stargate message Failed!", 1)
     end
+end
+
+local function get_env_status_message()
+    if SG_SETTINGS.rs_safe_env == nil then
+        return "env_unknown"
+    end
+
+    local safe_env = SG_UTILS.rs_input(SG_SETTINGS.rs_safe_env)
+    return safe_env and "env_safe" or "env_unsafe"
+end
+
+local function send_env_status_message()
+    local gate = SG_UTILS.get_inf_gate()
+    if not gate or STATE.outbound ~= false or type(gate.sendStargateMessage) ~= "function" then
+        return
+    end
+
+    local ok, err = pcall(gate.sendStargateMessage, get_env_status_message())
+    if not ok then
+        print("Failed to send env status: " .. tostring(err))
+    end
+end
+
+local function show_remote_env_status(message)
+    if not (STATE.connected and STATE.outbound == true) then
+        return false
+    end
+
+    local text
+    if message == "env_safe" then
+        text = "Remote Environment: SAFE"
+    elseif message == "env_unsafe" then
+        text = "Remote Environment: UNSAFE"
+    elseif message == "env_unknown" then
+        text = "Remote Environment: UNKNOWN"
+    end
+
+    if not text then
+        return false
+    end
+
+    SG_UTILS.update_line(text, 4)
+    return true
 end
 
 local function is_wormhole_active()
@@ -272,7 +315,7 @@ local function screen()
 
     local mon = SG_UTILS.get_inf_mon()
     if mon then
-        local fast = SG_UTILS.rs_input(SG_SETTINGS.fast_dial_rs_side)
+        local fast = SG_UTILS.rs_input(SG_SETTINGS.rs_fast_dial)
         mon.setCursorPos(layout.width, layout.height)
         mon.write(fast and ">" or "#")
     end
@@ -357,7 +400,7 @@ local function handle_selection(sel)
     STATE.gate_id = SG_UTILS.address_to_string(gate.address)
     STATE.disconnected_early = false
 
-    local fast = SG_UTILS.rs_input(SG_SETTINGS.fast_dial_rs_side)
+    local fast = SG_UTILS.rs_input(SG_SETTINGS.rs_fast_dial)
     local dialing_type = fast and "Fast Dialing: " or "Dialing: "
     show_status({ dialing_type .. gate.site, STATE.gate_id })
 
@@ -637,20 +680,28 @@ local function stargate_disconnected(p2, feedback_num, feedback_desc)
 end
 
 local function stargate_message_received(p2, message)
-    if message ~= "sg_disconnect" then
+    if type(message) ~= "string" then
         return
     end
-    if STATE.connected and STATE.outbound == true then
-        SG_UTILS.update_line("Remote disconnect requested", 3)
-        disconnect_now(true)
+
+    if message == "sg_disconnect" then
+        if STATE.connected and STATE.outbound == true then
+            SG_UTILS.update_line("Remote disconnect requested", 3)
+            disconnect_now(true)
+        end
+        return
+    end
+
+    if show_remote_env_status(message) then
+        return
     end
 end
 
 local function stargate_chevron_engaged(p2, count, engaged, incoming, symbol)
     if incoming then
         local rs = SG_UTILS.get_inf_rs()
-        if SG_SETTINGS.incom_alarm_rs_side and rs then
-            rs.setOutput(SG_SETTINGS.incom_alarm_rs_side, true)
+        if SG_SETTINGS.rs_income_alarm and rs then
+            rs.setOutput(SG_SETTINGS.rs_income_alarm, true)
         end
         SG_UTILS.prepare_monitor(1)
         SG_UTILS.set_text_color(colors.red)
@@ -666,11 +717,13 @@ local function stargate_incoming_wormhole(p2, address)
     STATE.gate_id = "Incoming"
     STATE.disconnected_early = false
     start_incoming_counter(get_open_seconds())
+    send_env_status_message()
 end
 
 local function stargate_outgoing_wormhole(p2, address)
     clear_screen_timer()
-    SG_UTILS.update_line("Wormhole open", 3)
+    SG_UTILS.update_line("Wormhole Open", 3)
+    SG_UTILS.update_line("", 4)
     STATE.outbound = true
     STATE.connected = true
     if not STATE.gate_id then
