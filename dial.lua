@@ -65,6 +65,19 @@ local STATE = {
 local TIMERS = {}
 local TIMER_LOOKUP = {}
 
+local event_handlers
+local stargate_clear_screen_events
+local dispatch_event
+local dispatch_non_user_event
+local CANCEL_EVENT_BLACKLIST = {
+    redstone = true,
+    stargate_deconstructing_entity = true,
+    stargate_reconstructing_entity = true,
+    stargate_message = true,
+    stargate_message_received = true,
+    stargate_outgoing_wormhole = true,
+}
+
 local function send_incoming_message()
     local gate = SG_UTILS.get_inf_gate()
     if not gate or STATE.outbound ~= false then
@@ -367,6 +380,7 @@ end
 
 local function dial_with_cancel(gate, fast)
     local cancel_requested = false
+    local cancel_reason
     local dial_result
 
     local function run_dial()
@@ -378,22 +392,41 @@ local function dial_with_cancel(gate, fast)
 
     local function wait_for_cancel()
         while not dial_result do
-            SG_UTILS.wait_for_disconnect_request()
-            if dial_result then
-                break
+            local event = { os.pullEvent() }
+            local name = event[1]
+
+            local handler_result
+            if event_handlers and event_handlers[name] and not CANCEL_EVENT_BLACKLIST[name] and dispatch_non_user_event then
+                handler_result = dispatch_non_user_event(event)
             end
-            cancel_requested = true
-            while not dial_result do
-                os.pullEvent()
+
+            if handler_result == true then
+                cancel_requested = true
+                cancel_reason = cancel_reason or name
+            elseif name == "monitor_touch" or name == "key" or name == "char" then
+                cancel_requested = true
+                cancel_reason = cancel_reason or "user"
+            elseif name == "stargate_incoming_wormhole" then
+                cancel_requested = true
+                cancel_reason = cancel_reason or "incoming"
+            elseif name == "stargate_chevron_engaged" and event[4] == true then
+                cancel_requested = true
+                cancel_reason = cancel_reason or "incoming"
+            elseif name == "timer" then
+                local tname = timer_name(event[2])
+                if tname then
+                    cancel_requested = true
+                    cancel_reason = cancel_reason or tname
+                end
             end
         end
     end
 
     parallel.waitForAny(run_dial, wait_for_cancel)
     if not dial_result then
-        return false, "cancelled", cancel_requested
+        return false, "cancelled", cancel_reason or cancel_requested
     end
-    return dial_result[1], dial_result[2], cancel_requested
+    return dial_result[1], dial_result[2], cancel_reason
 end
 
 local function handle_selection(sel)
@@ -423,7 +456,7 @@ local function handle_selection(sel)
     local dialing_type = fast and "Fast Dialing: " or "Dialing: "
     show_status({ dialing_type .. site, STATE.gate_id })
 
-    local success, reason, cancelled = dial_with_cancel(gate, fast)
+    local success, reason, cancel_reason = dial_with_cancel(gate, fast)
     if success then
         clear_screen_timer()
         local connected_now = is_wormhole_active()
@@ -452,18 +485,23 @@ local function handle_selection(sel)
         return
     end
 
-    STATE.outbound = nil
-    STATE.connected = false
-    STATE.gate = nil
-    STATE.gate_id = nil
     local message
     if reason == "no_gate" then
         message = "No gate interface found"
-    elseif reason == "cancelled" or cancelled then
+    elseif reason == "cancelled" or cancel_reason then
+        local connection_active = STATE.outbound == false or STATE.gate_id == "Incoming" or STATE.connected or is_wormhole_active()
+        if connection_active and (cancel_reason == "incoming" or cancel_reason == "stargate_incoming_wormhole") then
+            return
+        end
         message = "Dial cancelled"
     else
         message = "Dial failed"
     end
+
+    STATE.outbound = nil
+    STATE.connected = false
+    STATE.gate = nil
+    STATE.gate_id = nil
     show_status(message)
     clear_screen_timer()
     start_timer("screen", 2)
@@ -802,7 +840,7 @@ local user_event_handlers = {
     end,
 }
 
-local event_handlers = {
+event_handlers = {
     stargate_chevron_engaged = stargate_chevron_engaged,
     stargate_incoming_wormhole = stargate_incoming_wormhole,
     stargate_outgoing_wormhole = stargate_outgoing_wormhole,
@@ -817,7 +855,7 @@ local event_handlers = {
     terminate = handle_terminate,
 }
 
-local stargate_clear_screen_events = {
+stargate_clear_screen_events = {
     stargate_chevron_engaged = true,
     stargate_incoming_wormhole = true,
     stargate_wormhole_opened = true,
@@ -825,20 +863,26 @@ local stargate_clear_screen_events = {
     stargate_disconnected = true,
 }
 
-local function dispatch_event(event)
+dispatch_non_user_event = function(event)
     local name = event[1]
-    local handler = user_event_handlers[name]
-    if handler then
-        return handler(table.unpack(event, 2))
-    end
 
-    handler = event_handlers[name]
+    local handler = event_handlers[name]
     if handler then
         if stargate_clear_screen_events[name] then
             clear_screen_timer()
         end
         return handler(table.unpack(event, 2))
     end
+end
+
+function dispatch_event(event)
+    local name = event[1]
+    local handler = user_event_handlers[name]
+    if handler then
+        return handler(table.unpack(event, 2))
+    end
+
+    return dispatch_non_user_event(event)
 end
 
 if not resume_active_wormhole() then
