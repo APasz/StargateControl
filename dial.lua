@@ -257,7 +257,7 @@ local function timer_name(id)
 end
 
 local function show_disconnect_line(value)
-    SG_UTILS.update_line("Stargate Disconnect in " .. tostring(value), 2)
+    SG_UTILS.update_line("Disconnect in " .. tostring(value), 2)
 end
 
 local function reset_timer()
