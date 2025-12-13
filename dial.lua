@@ -420,7 +420,7 @@ local function handle_selection(sel)
 
     local fast = SG_UTILS.rs_input(SG_SETTINGS.rs_fast_dial)
     local dialing_type = fast and "Fast Dialing: " or "Dialing: "
-    show_status({ dialing_type .. gate.site, STATE.gate_id })
+    show_status({ dialing_type .. STATE.gate.site, STATE.gate_id })
 
     local success, reason, cancelled = dial_with_cancel(gate, fast)
     if success then
