@@ -2,14 +2,45 @@ package.path = package.path .. ";disk/?.lua;disk/?/init.lua"
 local SG_UTILS = require("utils")
 local INF_RS = SG_UTILS.get_inf_rs()
 
-local side_toggle = "front"
-local side_input = "bottom"
-local flash_delay = 0.3
-local status_flash_duration = 0.25
-local status_flash_interval = 0.75
+local SETTINGS_PATH = "settings.lua"
+local DEFAULT_SETTINGS_CONTENT = [[return {
+    side_toggle = "front",
+    side_input = "bottom",
+    phase_sides = { "left", "top", "right" },
+    flash_delay = 0.28,
+    status_flash_duration = 0.25,
+    status_flash_interval = 0.75
+    debounce_reads = 1
+}
+]]
 
-local phase_sides = { "left", "top", "right" }
-local debounce_reads = 1
+local function load_or_create_settings()
+    if fs.exists(SETTINGS_PATH) then
+        local ok, config = pcall(require, "settings")
+        if ok then
+            return config
+        end
+        error(config, 0)
+    end
+
+    local handle = fs.open(SETTINGS_PATH, "w")
+    if not handle then
+        error("Missing settings.lua and unable to create it", 0)
+    end
+
+    handle.write(DEFAULT_SETTINGS_CONTENT)
+    handle.close()
+
+    local ok, config = pcall(require, "settings")
+    if not ok then
+        error(config, 0)
+    end
+
+    print("Created default settings.lua; edit it to change site, etc")
+    return config
+end
+local AL_SETTINGS = load_or_create_settings()
+
 local phase_timer = nil
 local status_flash_timer = nil
 local status_flash_visible = false
@@ -24,8 +55,8 @@ local input_stable_count = 0
 
 local function set_toggle(active)
     local rs = SG_UTILS.get_inf_rs()
-    if rs and side_toggle then
-        rs.setOutput(side_toggle, active)
+    if rs and AL_SETTINGS.side_toggle then
+        rs.setOutput(AL_SETTINGS.side_toggle, active)
     end
 end
 
@@ -34,7 +65,7 @@ local function clear_phase_outputs()
     if not rs then
         return
     end
-    for _, side in ipairs(phase_sides) do
+    for _, side in ipairs(AL_SETTINGS.phase_sides) do
         rs.setOutput(side, false)
     end
 end
@@ -44,7 +75,7 @@ local function set_phase(target)
     if not rs then
         return
     end
-    for _, side in ipairs(phase_sides) do
+    for _, side in ipairs(AL_SETTINGS.phase_sides) do
         rs.setOutput(side, side == target)
     end
 end
@@ -67,7 +98,7 @@ local function should_flash_status(input_active)
     if active_input == nil then
         active_input = stable_input
         if active_input == nil then
-            active_input = SG_UTILS.rs_input(side_input)
+            active_input = SG_UTILS.rs_input(AL_SETTINGS.side_input)
         end
     end
     return alarm_active or (manual_cancelled and active_input)
@@ -81,7 +112,7 @@ local function update_status_flash_timer(force_flash_state)
 
     if should_flash then
         if not status_flash_timer then
-            local delay = status_flash_visible and status_flash_duration or status_flash_interval
+            local delay = status_flash_visible and AL_SETTINGS.status_flash_duration or AL_SETTINGS.status_flash_interval
             status_flash_timer = os.startTimer(delay)
         end
     else
@@ -103,7 +134,7 @@ local function draw_status(mon, status, should_flash)
 
     local flashing = should_flash and status_flash_visible and mon.isColor and mon.isColor()
     if flashing then
-        SG_UTILS.set_text_color(colors.red)
+        SG_UTILS.set_text_color(colours.red)
     end
 
     mon.write(status_line)
@@ -120,7 +151,7 @@ local function render_screen()
 
     SG_UTILS.prepare_monitor(0.5, true)
 
-    local input_active = SG_UTILS.rs_input(side_input)
+    local input_active = SG_UTILS.rs_input(AL_SETTINGS.side_input)
     local status
     local status_should_flash
     if alarm_active then
@@ -157,9 +188,9 @@ local function start_alarm()
     end
     alarm_active = true
     phase_index = 1
-    set_phase(phase_sides[phase_index])
+    set_phase(AL_SETTINGS.phase_sides[phase_index])
     update_toggle_output()
-    phase_timer = os.startTimer(flash_delay)
+    phase_timer = os.startTimer(AL_SETTINGS.flash_delay)
     render_screen()
 end
 
@@ -175,14 +206,14 @@ local function stop_alarm()
 end
 
 local function refresh_input_state()
-    local input_active = SG_UTILS.rs_input(side_input)
+    local input_active = SG_UTILS.rs_input(AL_SETTINGS.side_input)
     if input_active ~= last_raw_input then
         input_stable_count = 1
         last_raw_input = input_active
     else
         input_stable_count = input_stable_count + 1
     end
-    if input_active ~= stable_input and input_stable_count >= debounce_reads then
+    if input_active ~= stable_input and input_stable_count >= AL_SETTINGS.debounce_reads then
         stable_input = input_active
     end
 
@@ -201,8 +232,8 @@ local function advance_phase()
     if not alarm_active then
         return
     end
-    phase_index = (phase_index % #phase_sides) + 1
-    set_phase(phase_sides[phase_index])
+    phase_index = (phase_index % #AL_SETTINGS.phase_sides) + 1
+    set_phase(AL_SETTINGS.phase_sides[phase_index])
 end
 
 local function handle_timer(id)
@@ -212,7 +243,7 @@ local function handle_timer(id)
             return
         end
         advance_phase()
-        phase_timer = os.startTimer(flash_delay)
+        phase_timer = os.startTimer(AL_SETTINGS.flash_delay)
     elseif id == status_flash_timer then
         status_flash_timer = nil
         if not should_flash_status() then
@@ -222,7 +253,7 @@ local function handle_timer(id)
         end
 
         status_flash_visible = not status_flash_visible
-        local delay = status_flash_visible and status_flash_duration or status_flash_interval
+        local delay = status_flash_visible and AL_SETTINGS.status_flash_duration or AL_SETTINGS.status_flash_interval
         status_flash_timer = os.startTimer(delay)
         render_screen()
     end

@@ -127,28 +127,29 @@ local function show_remote_env_status(message)
     end
 
     local text
+    local col
     if message == "env_safe" then
         text = "Environment: SAFE"
-        color = colors.blue
+        col = colours.blue
     elseif message == "env_unsafe" then
         text = "Environment: UNSAFE"
-        color = colors.red
+        col = colours.red
     elseif message == "env_unknown" then
         text = "Environment: UNKNOWN"
-        color = colors.yellow
+        col = colours.yellow
     end
 
     if not text then
         return false
     end
 
-    if color then
-        SG_UTILS.set_text_color(color)
+    if col then
+        SG_UTILS.set_text_color(col)
     else
         SG_UTILS.reset_text_color()
     end
     SG_UTILS.update_line(text, 4)
-    if color then
+    if col then
         SG_UTILS.reset_text_color()
     end
     return true
