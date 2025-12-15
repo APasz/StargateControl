@@ -693,7 +693,7 @@ function U.pad_to_width(text, width)
     return text .. string.rep(" ", width - #text)
 end
 
-local function trim_edge_hyphens(str)
+function U.trim_edge_hyphens(str)
     if type(str) ~= "string" then
         return str
     end
