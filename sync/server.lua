@@ -6,7 +6,7 @@ local REQUEST_PROTOCOL = "files_request"
 local REPLY_PROTOCOL = "files_reply"
 local SERVER_NAME = "SGServer"
 local BASE_DIR = "disk"
-local FILE_LIST = require("sync.file_list")
+local FILE_LIST = require("file_list")
 
 rednet.host(REQUEST_PROTOCOL, SERVER_NAME)
 
