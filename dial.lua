@@ -936,19 +936,42 @@ function dispatch_event(event)
     return dispatch_non_user_event(event)
 end
 
-if not resume_active_wormhole() then
-    screen()
+local function show_error(err)
+    local message = tostring(err or "unknown error")
+    SG_UTILS.prepare_monitor(1, true)
+    reset_top()
+    SG_UTILS.set_text_colour(colours.red)
+    SG_UTILS.update_line("! ERROR !", 1)
+    SG_UTILS.reset_text_colour()
+    SG_UTILS.update_line(message, 2)
+    SG_UTILS.update_line("See terminal for traceback", 3)
 end
-while true do
-    local event = { os.pullEventRaw() }
-    if event[1] == "terminate" then
-        if handle_terminate() then
-            break
-        end
-    else
-        local should_stop = dispatch_event(event)
-        if should_stop then
-            break
+
+local function main_loop()
+    if not resume_active_wormhole() then
+        screen()
+    end
+    while true do
+        local event = { os.pullEventRaw() }
+        if event[1] == "terminate" then
+            if handle_terminate() then
+                break
+            end
+        else
+            local should_stop = dispatch_event(event)
+            if should_stop then
+                break
+            end
         end
     end
+end
+
+local function handle_error(err)
+    show_error(err)
+    return debug.traceback(err, 2)
+end
+
+local ok, err = xpcall(main_loop, handle_error)
+if not ok then
+    print(err)
 end
