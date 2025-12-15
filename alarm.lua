@@ -132,14 +132,14 @@ local function draw_status(mon, status, should_flash)
     local status_line = "Alarm: " .. status
     mon.setCursorPos(1, 1)
 
-    local flashing = should_flash and status_flash_visible and mon.isColor and mon.isColor()
+    local flashing = should_flash and status_flash_visible and mon.isColour()
     if flashing then
-        SG_UTILS.set_text_color(colours.red)
+        SG_UTILS.set_text_colour(colours.red)
     end
 
     mon.write(status_line)
     if flashing then
-        SG_UTILS.reset_text_color()
+        SG_UTILS.reset_text_colour()
     end
 end
 

@@ -14,7 +14,7 @@ CC:Tweaked/ComputerCraft scripts for driving a Stargate from a monitor UI, raisi
 
 ## Requirements
 - CC:Tweaked (or ComputerCraft) with a Stargate interface peripheral: `advanced_crystal_interface`, `crystal_interface`, or `basic_interface`.
-- A monitor (color preferred). The dialer will fall back to the terminal if none is present.
+- A monitor (colour preferred). The dialer will fall back to the terminal if none is present.
 - Optional redstone relay; otherwise the computer’s native redstone API is used.
 - Wireless/ender modems for rednet sync; HTTP enabled if you use `updater.lua`.
 

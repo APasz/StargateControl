@@ -319,17 +319,17 @@ function U.prepare_monitor(scale, should_clear)
     update_mon_size()
 end
 
-function U.set_text_color(color)
+function U.set_text_colour(colour)
     local mon = U.get_inf_mon()
-    if mon and mon.isColor and mon.isColor() and color then
-        mon.setTextColor(color)
+    if mon and mon.isColour() and colour then
+        mon.setTextColour(colour)
     end
 end
 
-function U.reset_text_color()
+function U.reset_text_colour()
     local mon = U.get_inf_mon()
-    if mon and mon.isColor and mon.isColor() then
-        mon.setTextColor(colors.white)
+    if mon and mon.isColour() then
+        mon.setTextColour(colours.white)
     end
 end
 
@@ -403,6 +403,55 @@ function U.update_line(text, line, log_text)
         print(":" .. log_text)
         return #segments
     end
+end
+
+local function resolve_line(line, ignore_offset)
+    if ignore_offset then
+        return math.max(line or 1, 1)
+    end
+    return (line or 1) + LINE_OFFSET
+end
+
+local function flatten_segments(segments)
+    local parts = {}
+    for _, seg in ipairs(segments or {}) do
+        parts[#parts + 1] = seg.text or ""
+    end
+    return table.concat(parts)
+end
+
+function U.update_coloured_line(segments, line, log_text, ignore_offset)
+    local mon = U.get_inf_mon()
+    local target_line = resolve_line(line, ignore_offset)
+    local full_text = flatten_segments(segments)
+
+    if not (mon and mon.isColour()) then
+        return U.update_line(full_text, line, log_text)
+    end
+
+    local width = select(1, U.get_monitor_size())
+    mon.setCursorPos(1, target_line)
+    mon.clearLine()
+
+    local remaining = width
+    for _, seg in ipairs(segments or {}) do
+        if remaining and remaining <= 0 then
+            break
+        end
+        local text = seg.text or ""
+        if remaining and #text > remaining then
+            text = string.sub(text, 1, remaining)
+        end
+        mon.setTextColour(seg.colour or colours.white)
+        mon.write(text)
+        if remaining then
+            remaining = remaining - #text
+        end
+    end
+
+    mon.setTextColour(colours.white)
+    print(log_text or full_text)
+    return 1
 end
 
 function U.show_top_message(text)
@@ -669,7 +718,7 @@ local function wait_for_fast_engage(interface, symbol, expected_chevron, cancel_
     return true
 end
 
-function U.dial_fast(gate, cancel_check)
+function U.dial_fast(gate, cancel_check, progress_cb)
     local interface = U.get_inf_gate()
     if not interface then
         return false, "no_gate"
@@ -696,13 +745,16 @@ function U.dial_fast(gate, cancel_check)
             U.reset_stargate()
             return false, "cancelled"
         end
+        if progress_cb then
+            progress_cb(chevron, symbol, addr_len)
+        end
         sleep(0.7)
     end
     U.update_line("", 2)
     return true
 end
 
-function U.dial_slow(gate, cancel_check)
+function U.dial_slow(gate, cancel_check, progress_cb)
     local interface = U.get_inf_gate(false)
     if not interface then
         return false, "no_gate"
@@ -751,13 +803,16 @@ function U.dial_slow(gate, cancel_check)
             U.reset_stargate()
             return false, "cancelled"
         end
+        if progress_cb then
+            progress_cb(chevron, symbol, addr_len)
+        end
         sleep(0.7)
     end
     U.update_line("", 2)
     return true
 end
 
-function U.dial(gate, fast, cancel_check)
+function U.dial(gate, fast, cancel_check, progress_cb)
     local interface = U.get_inf_gate(false)
     if not interface then
         print("No gate interface found")
@@ -778,16 +833,16 @@ function U.dial(gate, fast, cancel_check)
     if fast then
         if type(interface.engageSymbol) ~= "function" then
             print("Falling back to slow dial")
-            return U.dial_slow(gate, cancel_check)
+            return U.dial_slow(gate, cancel_check, progress_cb)
         else
-            return U.dial_fast(gate, cancel_check)
+            return U.dial_fast(gate, cancel_check, progress_cb)
         end
     else
         if type(interface.rotateClockwise) ~= "function" then
             print("Falling back to fast dial")
-            return U.dial_fast(gate, cancel_check)
+            return U.dial_fast(gate, cancel_check, progress_cb)
         else
-            return U.dial_slow(gate, cancel_check)
+            return U.dial_slow(gate, cancel_check, progress_cb)
         end
     end
 end

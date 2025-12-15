@@ -144,13 +144,13 @@ local function show_remote_env_status(message)
     end
 
     if col then
-        SG_UTILS.set_text_color(col)
+        SG_UTILS.set_text_colour(col)
     else
-        SG_UTILS.reset_text_color()
+        SG_UTILS.reset_text_colour()
     end
     SG_UTILS.update_line(text, 4)
     if col then
-        SG_UTILS.reset_text_color()
+        SG_UTILS.reset_text_colour()
     end
     return true
 end
@@ -212,6 +212,33 @@ local function show_status(lines, scale)
     else
         return show_top_message(lines)
     end
+end
+
+local function update_dial_progress(encoded_count)
+    if not (STATE.gate and STATE.gate.address) then
+        return
+    end
+
+    local addr = STATE.gate.address
+    local total = #addr
+    if total <= 0 then
+        return
+    end
+
+    local coloured = math.max(math.min(encoded_count or 0, total), 0)
+    local segments = {}
+    for idx, symbol in ipairs(addr) do
+        local text = tostring(symbol)
+        if idx < total then
+            text = text .. "-"
+        end
+        segments[#segments + 1] = {
+            text = text,
+            colour = idx <= coloured and colours.lime or colours.lightGray,
+        }
+    end
+
+    SG_UTILS.update_coloured_line(segments, 1, SG_UTILS.address_to_string(addr))
 end
 
 local function cancel_timer(name)
@@ -387,6 +414,8 @@ local function dial_with_cancel(gate, fast)
     local function run_dial()
         local success, reason = SG_UTILS.dial(gate, fast, function()
             return cancel_requested
+        end, function(encoded_idx)
+            update_dial_progress(encoded_idx)
         end)
         dial_result = { success, reason }
     end
@@ -456,6 +485,7 @@ local function handle_selection(sel)
     local fast = SG_UTILS.rs_input(SG_SETTINGS.rs_fast_dial)
     local dialing_type = fast and "Fast Dialing: " or "Dialing: "
     show_status({ dialing_type .. site, STATE.gate_id })
+    update_dial_progress(0)
 
     local success, reason, cancel_reason = dial_with_cancel(gate, fast)
     if success then
@@ -555,7 +585,7 @@ end
 
 local function show_incoming_banner()
     SG_UTILS.prepare_monitor(1, true)
-    SG_UTILS.set_text_color(colors.red)
+    SG_UTILS.set_text_colour(colours.red)
     reset_top()
     local width = select(1, SG_UTILS.get_monitor_size())
     if not width or width < 1 then
@@ -572,7 +602,7 @@ local function show_incoming_banner()
     SG_UTILS.update_line(top_bottom, 1)
     SG_UTILS.update_line(middle, 2)
     SG_UTILS.update_line(top_bottom, 3)
-    SG_UTILS.reset_text_color()
+    SG_UTILS.reset_text_colour()
     STATE.top_lines = 3
     SG_UTILS.set_line_offset(STATE.top_lines - 1)
 end
@@ -793,9 +823,9 @@ local function stargate_chevron_engaged(p2, count, engaged, incoming, symbol)
             rs.setOutput(SG_SETTINGS.rs_income_alarm, true)
         end
         SG_UTILS.prepare_monitor(1)
-        SG_UTILS.set_text_color(colors.red)
+        SG_UTILS.set_text_colour(colours.red)
         SG_UTILS.update_line("!!! Incoming wormhole !!!")
-        SG_UTILS.reset_text_color()
+        SG_UTILS.reset_text_colour()
     end
 end
 
