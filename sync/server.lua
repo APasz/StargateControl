@@ -35,6 +35,7 @@ local function build_file_map(list)
             map[file.filename] = {
                 src = fs.combine(BASE_DIR, file.git),
                 dst = file.filename,
+                override = file.override ~= false,
             }
         end
         scoped_files[scope] = map
@@ -71,6 +72,6 @@ while true do
         print(("Skipping send of %s/%s; data missing"):format(scope, filename))
         rednet.send(id, { error = "File missing" }, REPLY_PROTOCOL)
     else
-        rednet.send(id, { dst = file.dst, data = file.data }, REPLY_PROTOCOL)
+        rednet.send(id, { dst = file.dst, data = file.data, override = file.override }, REPLY_PROTOCOL)
     end
 end

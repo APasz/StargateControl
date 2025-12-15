@@ -108,7 +108,12 @@ local function build_fetch_plan(file_list, scope)
             local filename = file.filename
             local key = ("%s:%s"):format(scope_name, filename)
             if not seen[key] then
-                plan[#plan + 1] = { scope = scope_name, filename = filename }
+                plan[#plan + 1] = {
+                    scope = scope_name,
+                    filename = filename,
+                    override = file.override ~= false,
+                    dst = filename,
+                }
                 seen[key] = true
             end
         end
@@ -161,6 +166,11 @@ end
 local function write_file(file)
     if type(file.dst) ~= "string" or type(file.data) ~= "string" then
         error("Invalid file payload (missing dst or data)", 0)
+    end
+
+    if file.override == false and fs.exists(file.dst) then
+        print(("Skipping %s (override=false; keeping local copy)"):format(file.dst))
+        return
     end
 
     local parent_dir = fs.getDir(file.dst)
@@ -219,12 +229,18 @@ local files_to_fetch = build_fetch_plan(file_list, scope)
 
 local fetched_files = {}
 for _, request in ipairs(files_to_fetch) do
-    local ok, file_or_err = pcall(fetch_file, request, server_id)
-    if not ok then
-        print(("Failed to fetch %s/%s; running cached files: %s"):format(request.scope, request.filename, tostring(file_or_err)))
-        return run_primary()
+    local target_path = request.dst or request.filename
+    if request.override == false and target_path and fs.exists(target_path) then
+        print(("Keeping local %s (override=false)"):format(target_path))
+    else
+        local ok, file_or_err = pcall(fetch_file, request, server_id)
+        if not ok then
+            print(("Failed to fetch %s/%s; running cached files: %s"):format(request.scope, request.filename, tostring(file_or_err)))
+            return run_primary()
+        end
+        file_or_err.override = request.override
+        fetched_files[#fetched_files + 1] = file_or_err
     end
-    fetched_files[#fetched_files + 1] = file_or_err
 end
 
 for _, file in ipairs(fetched_files) do
