@@ -4,13 +4,16 @@ CC:Tweaked/ComputerCraft scripts for driving a Stargate from a monitor UI, raisi
 
 ## Files
 - `dial.lua` — main Stargate controller; renders the monitor menu, supports fast/slow dialing, tracks incoming/outgoing wormholes, and resumes if a wormhole is already open after reboot.
+- `dial_settings.lua` — template for the dialer `settings.lua`; fetched by the client when no local settings exist.
 - `addresses.lua` — list of named gates. Entries can hide or require sites (see below).
-- `settings.lua` — dialer config for redstone sides, timeout, and optional site hint.
 - `utils.lua` — shared helpers for monitors, redstone, address formatting, dialing, and input handling.
 - `alarm.lua` — siren/indicator UI driven by a redstone input with buttons to silence or toggle outputs.
-- `server.lua` / `client.lua` — rednet file host/fetcher; keeps machines updated and can auto-run the primary program.
-- `client_config.lua` — modem side + primary program name for `client.lua`.
-- `updater.lua` — downloads the latest files from GitHub into `disk/` (for use on the rednet server disk, etc.).
+- `alarm_settings.lua` — template for the alarm `settings.lua`.
+- `sync/file_list.lua` — manifest of files shared over rednet, grouped by scope (`shared`, `dialing`, `alarming`, `server`).
+- `sync/server.lua` — rednet file host; serves files out of `disk/` using `file_list.lua`.
+- `sync/client.lua` — rednet fetcher; keeps machines updated and can auto-run the primary program.
+- `sync/client_config.lua` — modem side + primary program name/scope for `client.lua`.
+- `sync/updater.lua` — downloads the latest files into `disk/` (for the rednet server disk) and refreshes `updater.lua` itself.
 
 ## Requirements
 - CC:Tweaked (or ComputerCraft) with a Stargate interface peripheral: `advanced_crystal_interface`, `crystal_interface`, or `basic_interface`.
@@ -19,30 +22,45 @@ CC:Tweaked/ComputerCraft scripts for driving a Stargate from a monitor UI, raisi
 - Wireless/ender modems for rednet sync; HTTP enabled if you use `updater.lua`.
 
 ## Install / Update
-- Manual copy works fine, or download `updater.lua` from the repo and run `updater` on the computer that has a `disk/` directory to refresh every file from GitHub.
-- To distribute over rednet, put the fresh files in `disk/` on a host computer, run `server`, and let other machines pull via `client` (see below).
+- Manual copy works fine, or fetch `sync/updater.lua` (save/run as `updater`) on the computer that has a `disk/` directory; it pulls everything listed in `sync/file_list.lua` into `disk/` and refreshes `updater.lua`.
+- To distribute over rednet, keep that `disk/` mounted on a host computer, run `sync/server.lua`, and let other machines pull via `sync/client.lua` (see File Sync below).
 
 ## Configure
 ### Addresses (`addresses.lua`)
 Each entry needs a `site`, `galaxy`, and `address` (7–9 numbers). Optional filters: `hide_on`, `only_from`, `only_to`, `intergalaxial`
 ```lua
 { site = "Earth", galaxy = "MilkyWay", intergalaxial = { "*" }, address = { 30, 18, 9, 5, 25, 14, 31, 15, 0 } },
-{ site = "Moon", galaxy = "MilkyWay", address = { 9, 1, 3, 6, 15, 4, 25, 27, 0 }, only_from = { "Earth" }, only_to = { "Earth" } },
+{ site = "Moon", galaxy = "MilkyWay", address = { 6, 7, 27, 31, 23, 18, 3, 5, 0 }, only_from = { "Earth" }, only_to = { "Earth" } },
 { site = "Vermilion", galaxy = "MilkyWay", address = { 13, 3, 17, 2, 14, 21, 32, 1, 0 }, only_from = { "Earth" }, only_to = { "Earth" }, hide_on = { "Earth" } },
 ```
 `hide_on` removes an entry when the local site matches; `only_from` allows dialing only from matching sites; `only_to` (on the local site entry) limits which destinations that site may dial. Sites are matched case-insensitively using the dialing PC's label in format of "*_'site'" or override with `settings.site` (when unmatched or unset, filtering is disabled).
 
 `galaxy` tags split the address list into separate networks. The dialer infers the local galaxy from the entry whose `site` matches the computer label/`settings.site`; if the local site or its galaxy is unknown, no galaxy filtering is applied. Cross-galaxy entries must opt-in on both sides via `intergalaxial = { "*", "SiteName" }`: an entry is shown if the local gate's `intergalaxial` list allows the remote site (or `*`) *and* the remote entry's `intergalaxial` list allows the local site (or `*`). Manual dialing stays universal to prevent soft-locks.
 
-### Dialer settings (`settings.lua`)
-`dial.lua` creates this file if missing with sensible defaults:
+### Dialer settings (`settings.lua` / `dial_settings.lua`)
+`dial.lua` creates `settings.lua` beside itself if missing; `dial_settings.lua` holds the same defaults used by `updater`/`client` when seeding a fresh install:
 ```lua
 return {
     site = nil,            -- optional site name for address filtering
     rs_fast_dial = "left", -- redstone input: high = fast-dial symbols; nil to ignore
     rs_income_alarm = nil, -- redstone output while an incoming wormhole is active
-    rs_safe_env = nil,     -- side to detect redstone signal if the local environment is safe
+    rs_safe_env = nil,     -- side to detect redstone signal if the local environment is safe (set to true to force always-safe)
     timeout = 60,          -- seconds before outbound wormholes auto-disconnect
+    dialing_colour = "green", -- colour to use during dialing progress
+}
+```
+
+### Alarm settings (`settings.lua` / `alarm_settings.lua`)
+`alarm.lua` also bootstraps a `settings.lua` if missing; `alarm_settings.lua` is the default template:
+```lua
+return {
+    side_toggle = "front",
+    side_input = "bottom",
+    phase_sides = { "left", "top", "right" },
+    flash_delay = 0.28,
+    status_flash_duration = 0.25,
+    status_flash_interval = 0.75,
+    debounce_reads = 1,
 }
 ```
 
@@ -52,16 +70,18 @@ Created on first run of `client.lua`:
 return {
     side = "back",      -- wireless/ender modem side
     primary_file = "dial", -- program to run after fetching (without .lua)
+    scope = nil,        -- optional scope override; defaults to primary_file (dialing/alarming/server)
 }
 ```
 
 ## Run the Dialer (`dial.lua`)
-- Make sure `dial.lua`, `utils.lua`, `addresses.lua`, and `settings.lua` are on the controller computer (or run `client setup` to fetch them).
+- Make sure `dial.lua`, `utils.lua`, `addresses.lua`, and `settings.lua` are on the controller computer (or run `client setup` to fetch/seed them).
 - Start with `dial`. The monitor shows the address list; tap a row or type its number to dial.
 - Manual entry: type numbers separated by spaces/commas/dashes; 6 symbols auto-append `0` as origin.
 - Fast/slow dialing is chosen by the `rs_fast_dial` input; the bottom-right corner shows `>` when fast-dial is active, `#` otherwise.
 - Outbound wormholes display a countdown and auto-disconnect after `timeout` seconds; tap the monitor to drop early.
-- Incoming wormholes paint a red banner, count open time, raise `rs_income_alarm` if set, and let you tap the monitor to send `sg_disconnect` to the remote gate when supported.
+- Incoming wormholes paint a red banner, count open time, raise `rs_income_alarm` if set, send the local env status when `rs_safe_env` is configured, and let you tap the monitor to send `sg_disconnect` to the remote gate when supported.
+- The dialer shows remote env status messages on line 4 during an active outgoing wormhole (when the other side reports one).
 - If the computer reboots while a wormhole is open, the UI resumes and shows the active connection.
 
 ## Alarm (`alarm.lua`)
@@ -70,5 +90,6 @@ return {
 - On-screen buttons: `[ TOGGLE SIREN ]` toggles the siren output; `[ CANCEL ALARM ]` silences while the input stays high. Debounce/flash timings sit at the top of the file.
 
 ## File Sync (optional)
-- `server.lua`: open a modem, host `files_request` as `SGServer`, and serve files from `disk/<name>.lua`. Keep a disk with the latest scripts on the server computer.
-- `client.lua`: looks up `SGServer`, downloads the configured files, writes them atomically, and runs `primary_file` (default `dial`). Use `client setup` the first time to pull required files (`settings.lua`, `addresses.lua`, etc.); later runs can just call `client` to refresh and launch.
+- `sync/file_list.lua`: defines scopes (`shared`, `dialing`, `alarming`, `server`) and the files each scope provides; edit to add your own files.
+- `sync/server.lua`: open a modem, host `files_request` as `SGServer`, and serve files from `disk/<path-from-file_list>`.
+- `sync/client.lua`: looks up `SGServer`, downloads the configured files, writes them atomically, and runs `primary_file` (default `dial`). Use `client setup` the first time to pull required files (`settings.lua`, `addresses.lua`, etc.); later runs can just call `client` to refresh and launch. `client_config.scope` can force a specific scope if needed.
