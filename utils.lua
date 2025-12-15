@@ -425,7 +425,8 @@ function U.update_coloured_line(segments, line, log_text, ignore_offset)
     local target_line = resolve_line(line, ignore_offset)
     local full_text = flatten_segments(segments)
 
-    if not (mon and mon.isColour()) then
+    local has_colour = mon and ((mon.isColour and mon.isColour()) or (mon.isColor and mon.isColor()))
+    if not has_colour then
         return U.update_line(full_text, line, log_text)
     end
 
@@ -442,14 +443,16 @@ function U.update_coloured_line(segments, line, log_text, ignore_offset)
         if remaining and #text > remaining then
             text = string.sub(text, 1, remaining)
         end
-        mon.setTextColour(seg.colour or colours.white)
+        local colour = seg.colour or colours.white
+        mon.setTextColour(colour)
         mon.write(text)
         if remaining then
             remaining = remaining - #text
         end
     end
 
-    mon.setTextColour(colours.white)
+    local reset_colour = colours.white
+    mon.setTextColour(reset_colour)
     print(log_text or full_text)
     return 1
 end
@@ -651,7 +654,7 @@ function U.address_to_string(addr)
     local interface = U.get_inf_gate()
     if interface and type(interface.addressToString) == "function" then
         local converted = interface.addressToString(addr)
-        converted = trim_edge_hyphens(converted)
+        converted = U.trim_edge_hyphens(converted)
         if converted and converted ~= "-" and converted ~= "" then
             return converted
         end
@@ -661,7 +664,7 @@ function U.address_to_string(addr)
     for i, v in ipairs(addr) do
         pieces[#pieces + 1] = tostring(v)
     end
-    return trim_edge_hyphens(table.concat(pieces, "-"))
+    return U.trim_edge_hyphens(table.concat(pieces, "-"))
 end
 
 function U.format_address(idx, gate, max_width, with_number)

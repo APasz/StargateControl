@@ -13,6 +13,8 @@ local DEFAULT_SETTINGS_CONTENT = [[return {
     -- side to detect redstone signal if the local environment is safe (set to true to force always-safe)
     timeout = 60,
     -- time until wormhole is autoclosed
+    dialing_colour = "green",
+    -- colour to use during dialing progress
 }
 ]]
 
@@ -214,6 +216,22 @@ local function show_status(lines, scale)
     end
 end
 
+local function resolve_colour(value, default)
+    if type(value) == "number" then
+        return value
+    end
+    if type(value) == "string" then
+        local key = string.lower(value)
+        if colours and colours[key] then
+            return colours[key]
+        end
+        if colors and colors[key] then
+            return colors[key]
+        end
+    end
+    return default
+end
+
 local function update_dial_progress(encoded_count)
     if not (STATE.gate and STATE.gate.address) then
         return
@@ -226,6 +244,8 @@ local function update_dial_progress(encoded_count)
     end
 
     local coloured = math.max(math.min(encoded_count or 0, total), 0)
+    local encoded_colour = resolve_colour(SG_SETTINGS.dialing_colour, colours.green)
+    local remaining_colour = colors.white
     local segments = {}
     for idx, symbol in ipairs(addr) do
         local text = tostring(symbol)
@@ -234,7 +254,7 @@ local function update_dial_progress(encoded_count)
         end
         segments[#segments + 1] = {
             text = text,
-            colour = idx <= coloured and colours.green or colours.lightGray,
+            colour = idx <= coloured and encoded_colour or remaining_colour,
         }
     end
 
