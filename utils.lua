@@ -651,6 +651,7 @@ function U.address_to_string(addr)
     local interface = U.get_inf_gate()
     if interface and type(interface.addressToString) == "function" then
         local converted = interface.addressToString(addr)
+        converted = trim_edge_hyphens(converted)
         if converted and converted ~= "-" and converted ~= "" then
             return converted
         end
@@ -660,7 +661,7 @@ function U.address_to_string(addr)
     for i, v in ipairs(addr) do
         pieces[#pieces + 1] = tostring(v)
     end
-    return table.concat(pieces, "-")
+    return trim_edge_hyphens(table.concat(pieces, "-"))
 end
 
 function U.format_address(idx, gate, max_width, with_number)
@@ -687,6 +688,19 @@ function U.pad_to_width(text, width)
         return text .. " "
     end
     return text .. string.rep(" ", width - #text)
+end
+
+local function trim_edge_hyphens(str)
+    if type(str) ~= "string" then
+        return str
+    end
+
+    local trimmed = str:gsub("^%s+", ""):gsub("%s+$", "")
+    trimmed = trimmed:gsub("^%-+", ""):gsub("%-+$", "")
+    if trimmed == "" then
+        return str
+    end
+    return trimmed
 end
 
 local function wait_for_fast_engage(interface, symbol, expected_chevron, cancel_check)

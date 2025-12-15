@@ -234,7 +234,7 @@ local function update_dial_progress(encoded_count)
         end
         segments[#segments + 1] = {
             text = text,
-            colour = idx <= coloured and colours.lime or colours.lightGray,
+            colour = idx <= coloured and colours.green or colours.lightGray,
         }
     end
 
