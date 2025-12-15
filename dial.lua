@@ -221,12 +221,23 @@ local function resolve_colour(value, default)
         return value
     end
     if type(value) == "string" then
-        local key = string.lower(value)
-        if colours and colours[key] then
-            return colours[key]
+        local function lookup(key)
+            if colours[key] then
+                return colours[key]
+            end
         end
-        if colors and colors[key] then
-            return colors[key]
+
+        local exact = lookup(value)
+        if exact then
+            return exact
+        end
+
+        local lower = string.lower(value)
+        if lower ~= value then
+            local lower_res = lookup(lower)
+            if lower_res then
+                return lower_res
+            end
         end
     end
     return default
@@ -245,7 +256,7 @@ local function update_dial_progress(encoded_count)
 
     local coloured = math.max(math.min(encoded_count or 0, total), 0)
     local encoded_colour = resolve_colour(SG_SETTINGS.dialing_colour, colours.green)
-    local remaining_colour = colors.white
+    local remaining_colour = resolve_colour("lightGrey", colours.white)
     local segments = {}
     for idx, symbol in ipairs(addr) do
         local text = tostring(symbol)
