@@ -52,11 +52,6 @@ local function fetch_latest_commit_name()
     end
 
     local subject = message:match("([^\r\n]+)") or message
-    local sha = data.sha
-    if type(sha) == "string" and #sha >= 7 then
-        return subject .. " (" .. sha:sub(1, 7) .. ")"
-    end
-
     return subject
 end
 
@@ -138,7 +133,7 @@ else
     print("Done (with errors; see above)")
 end
 if commit_name then
-    print("Latest commit: " .. commit_name)
+    print(commit_name)
 elseif commit_err then
     print("Latest commit unavailable: " .. tostring(commit_err))
 end
