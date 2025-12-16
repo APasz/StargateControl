@@ -5,6 +5,7 @@ if not http then
 end
 
 local BASE_URL = "https://raw.githubusercontent.com/APasz/StargateControl/main/"
+local COMMITS_API_URL = "https://api.github.com/repos/APasz/StargateControl/commits/main"
 local TARGET_DIR = "disk"
 local FILE_LIST_PATH = "sync/file_list.lua"
 local UPDATER_PATH = "sync/updater.lua"
@@ -13,8 +14,8 @@ if not fs.exists(TARGET_DIR) or not fs.isDir(TARGET_DIR) then
     error("No '" .. TARGET_DIR .. "' directory")
 end
 
-local function download(url)
-    local res, err = http.get(url)
+local function download(url, headers)
+    local res, err = http.get(url, headers)
     if not res then
         return nil, err
     end
@@ -22,6 +23,41 @@ local function download(url)
     local content = res.readAll()
     res.close()
     return content, nil
+end
+
+local function fetch_latest_commit_name()
+    local parse_json = textutils.unserialiseJSON
+    if not parse_json then
+        return nil, "JSON parser unavailable"
+    end
+
+    local headers = {
+        ["User-Agent"] = "StargateControlUpdater",
+        Accept = "application/vnd.github+json",
+    }
+
+    local content, err = download(COMMITS_API_URL, headers)
+    if not content then
+        return nil, err
+    end
+
+    local ok, data = pcall(parse_json, content)
+    if not ok or type(data) ~= "table" then
+        return nil, "Unexpected API response"
+    end
+
+    local message = data.commit and data.commit.message
+    if type(message) ~= "string" then
+        return nil, "Commit message unavailable"
+    end
+
+    local subject = message:match("([^\r\n]+)") or message
+    local sha = data.sha
+    if type(sha) == "string" and #sha >= 7 then
+        return subject .. " (" .. sha:sub(1, 7) .. ")"
+    end
+
+    return subject
 end
 
 local function load_file_list()
@@ -84,6 +120,13 @@ local function collect_paths(file_list)
 end
 
 local file_list = load_file_list()
+local commit_name, commit_err = fetch_latest_commit_name()
+if commit_name then
+    print("Latest commit: " .. commit_name)
+elseif commit_err then
+    print("Latest commit unavailable: " .. tostring(commit_err))
+end
+
 local paths = collect_paths(file_list)
 
 local success = true
