@@ -192,18 +192,14 @@ local function render_message(modem_side, sender, protocol, payload)
         target = tonumber(payload.target or 0)
     end
 
-    local line = nil
     if energy then
-        line = "Energy: " .. (format_energy(energy) or tostring(energy))
-        SG_UTILS.update_line(line, 1)
+        SG_UTILS.update_line("Energy: " .. (format_energy(energy) or tostring(energy)), 1)
     end
-    if energy then
-        line = "Capacity: " .. (format_energy(capacity) or tostring(capacity))
-        SG_UTILS.update_line(line, 2)
+    if capacity then
+        SG_UTILS.update_line("Capacity: " .. (format_energy(capacity) or tostring(capacity)), 2)
     end
-    if energy then
-        line = "Target: " .. (format_energy(target) or tostring(target))
-        SG_UTILS.update_line(line, 3)
+    if target then
+        SG_UTILS.update_line("Target: " .. (format_energy(target) or tostring(target)), 3)
     end
 
     STATE.status = "message"
