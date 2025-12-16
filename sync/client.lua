@@ -6,7 +6,19 @@ local SERVER_NAME = "SGServer"
 local FILE_LIST_NAME = "file_list.lua"
 local SCOPE_ALIASES = { dial = "dialing", alarm = "alarming", server = "server" }
 
-local function load_or_create_config()
+local function build_config_content(primary_file_override)
+    if not primary_file_override or primary_file_override == "" then
+        return DEFAULT_CONFIG_CONTENT
+    end
+
+    return ('return { side = "back", primary_file = %q }\n'):format(primary_file_override)
+end
+
+local function load_or_create_config(primary_file_override, force_reset)
+    if force_reset and fs.exists(CONFIG_PATH) then
+        fs.delete(CONFIG_PATH)
+    end
+
     if fs.exists(CONFIG_PATH) then
         local ok, config = pcall(require, "client_config")
         if ok then
@@ -20,7 +32,7 @@ local function load_or_create_config()
         error("Missing client_config.lua and unable to create it", 0)
     end
 
-    handle.write(DEFAULT_CONFIG_CONTENT)
+    handle.write(build_config_content(primary_file_override))
     handle.close()
 
     local ok, config = pcall(require, "client_config")
@@ -31,8 +43,11 @@ local function load_or_create_config()
     print("Created default client_config.lua; edit it to change modem side/primary file")
     return config
 end
+local args = { ... }
+local is_setup = args[1] == "setup"
+local primary_file_override = args[2]
 
-local CONFIG = load_or_create_config()
+local CONFIG = load_or_create_config(is_setup and primary_file_override or nil, is_setup)
 
 local function is_wireless_modem(side)
     if not side or peripheral.getType(side) ~= "modem" then
@@ -58,8 +73,7 @@ end
 
 ensure_modem_open(CONFIG.side)
 
-local args = { ... }
-local is_setup = args[1] == "setup"
+
 
 local function parse_file_list(content)
     local loader, err = load(content, FILE_LIST_NAME, "t", {})

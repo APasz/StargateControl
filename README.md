@@ -73,6 +73,7 @@ return {
     scope = nil,        -- optional scope override; defaults to primary_file (dialing/alarming/server)
 }
 ```
+Run `client setup` to create/refresh this file; pass a second arg to set `primary_file` (e.g. `client setup alarm`). `setup` deletes any existing `client_config.lua` before seeding it.
 
 ## Run the Dialer (`dial.lua`)
 - Make sure `dial.lua`, `utils.lua`, `addresses.lua`, and `settings.lua` are on the controller computer (or run `client setup` to fetch/seed them).
@@ -81,15 +82,15 @@ return {
 - Fast/slow dialing is chosen by the `rs_fast_dial` input; the bottom-right corner shows `>` when fast-dial is active, `#` otherwise.
 - Outbound wormholes display a countdown and auto-disconnect after `timeout` seconds; tap the monitor to drop early.
 - Incoming wormholes paint a red banner, count open time, raise `rs_income_alarm` if set, send the local env status when `rs_safe_env` is configured, and let you tap the monitor to send `sg_disconnect` to the remote gate when supported.
-- The dialer shows remote env status messages on line 4 during an active outgoing wormhole (when the other side reports one).
+- The dialer shows remote env status messages during an active outgoing wormhole (when the other side reports one).
 - If the computer reboots while a wormhole is open, the UI resumes and shows the active connection.
 
 ## Alarm (`alarm.lua`)
 - Intended for a separate computer/monitor fed by the dialer’s `rs_income_alarm` (or any redstone input).
 - Inputs: `side_input` (default `bottom`) starts/stops the alarm. Outputs: `side_toggle` (default `front`) for the siren plus cycling lights on `phase_sides` (`left`, `top`, `right`).
-- On-screen buttons: `[ TOGGLE SIREN ]` toggles the siren output; `[ CANCEL ALARM ]` silences while the input stays high. Debounce/flash timings sit at the top of the file.
+- On-screen buttons: `[ TOGGLE SIREN ]` toggles the siren output; `[ CANCEL ALARM ]` silences while the input stays high.
 
 ## File Sync (optional)
 - `sync/file_list.lua`: defines scopes (`shared`, `dialing`, `alarming`, `server`) and the files each scope provides; edit to add your own files.
 - `sync/server.lua`: open a modem, host `files_request` as `SGServer`, and serve files from `disk/<path-from-file_list>`.
-- `sync/client.lua`: looks up `SGServer`, downloads the configured files, writes them atomically, and runs `primary_file` (default `dial`). Use `client setup` the first time to pull required files (`settings.lua`, `addresses.lua`, etc.); later runs can just call `client` to refresh and launch. `client_config.scope` can force a specific scope if needed.
+- `sync/client.lua`: looks up `SGServer`, downloads the configured files, writes them atomically, and runs `primary_file` (default `dial`). Use `client setup` the first time to pull required files (`settings.lua`, `addresses.lua`, etc.), optionally with a second arg to set the primary program (`client setup alarm`); later runs can just call `client` to refresh and launch. `client_config.scope` can force a specific scope if needed.
