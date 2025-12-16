@@ -183,16 +183,16 @@ end
 local function render_message(modem_side, sender, protocol, payload)
     SG_UTILS.prepare_monitor(monitor_scale, true)
     SG_UTILS.reset_line_offset()
-    local energy
-    local capacity
-    local target
+    local energy = nil
+    local capacity = nil
+    local target = nil
     if type(payload) == "table" then
         energy = tonumber(payload.energy or 0)
         capacity = tonumber(payload.capacity or 0)
         target = tonumber(payload.target or 0)
     end
 
-    local line
+    local line = nil
     if energy then
         line = "Energy: " .. (format_energy(energy) or tostring(energy))
         SG_UTILS.update_line(line, 1)
