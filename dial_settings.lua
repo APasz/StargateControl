@@ -9,6 +9,10 @@ return {
     -- side to detect redstone signal if the local environment is safe (set to true to force always-safe)
     timeout = 60,
     -- time until wormhole is autoclosed
-    dialing_colour = "green"
+    dialing_colour = "green",
     -- colour to use during dialing progress
+    energy_modem_side = nil,
+    -- side with modem to broadcast energy (nil auto-detects)
+    energy_protocol = "sg_aux",
+    -- rednet protocol used when sending energy updates
 }

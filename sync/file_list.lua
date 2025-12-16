@@ -11,8 +11,16 @@ return {
         { filename = "server.lua", git = "sync/server.lua", override=true },
         { filename = "updater.lua", git = "sync/updater.lua", override=true },
     },
+    auxiliary = {
+        { filename = "auxiliary.lua", git = "auxiliary.lua", override=true },
+    },
     shared = {
         { filename = "utils.lua", git = "utils.lua", override=true },
+        { filename = "address_utils.lua", git = "address_utils.lua", override=true },
+        { filename = "monitor_utils.lua", git = "monitor_utils.lua", override=true },
+        { filename = "peripheral_utils.lua", git = "peripheral_utils.lua", override=true },
+        { filename = "menu_utils.lua", git = "menu_utils.lua", override=true },
+        { filename = "dialing_utils.lua", git = "dialing_utils.lua", override=true },
         { filename = "addresses.lua", git = "addresses.lua", override=true },
         { filename = "file_list.lua", git = "sync/file_list.lua", override=true },
         { filename = "client.lua", git = "sync/client.lua", override=true },

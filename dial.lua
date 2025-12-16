@@ -15,6 +15,10 @@ local DEFAULT_SETTINGS_CONTENT = [[return {
     -- time until wormhole is autoclosed
     dialing_colour = "green",
     -- colour to use during dialing progress
+    energy_modem_side = nil,
+    -- side with modem to broadcast energy (nil auto-detects)
+    energy_protocol = "sg_aux",
+    -- rednet protocol used when sending energy updates
 }
 ]]
 
@@ -66,6 +70,12 @@ local STATE = {
 }
 local TIMERS = {}
 local TIMER_LOOKUP = {}
+local ENERGY_STATE = {
+    modem_side = nil,
+    warned_config = false,
+    warned_missing = false,
+}
+local ENERGY_PROTOCOL = SG_SETTINGS.energy_protocol or "sg_aux"
 
 local event_handlers
 local stargate_clear_screen_events
@@ -155,6 +165,80 @@ local function show_remote_env_status(message)
         SG_UTILS.reset_text_colour()
     end
     return true
+end
+
+local function get_gate_energy()
+    if not INF_GATE or type(INF_GATE.getEnergy) ~= "function" then
+        return nil
+    end
+    local energy = INF_GATE.getEnergy()
+    local capacity = INF_GATE.getEnergyCapacity()
+    local target = INF_GATE.getEnergyTarget()
+    return { energy = energy, capacity = capacity, target = target }
+end
+
+local function open_energy_modem()
+    if ENERGY_STATE.modem_side and rednet.isOpen(ENERGY_STATE.modem_side) then
+        return ENERGY_STATE.modem_side
+    end
+
+    local configured = SG_SETTINGS.energy_modem_side
+    if configured then
+        if peripheral.getType(configured) == "modem" then
+            local ok, err = pcall(rednet.open, configured)
+            if not ok then
+                print("Energy modem open failed on " .. tostring(configured) .. ": " .. tostring(err))
+            end
+            if rednet.isOpen(configured) then
+                ENERGY_STATE.modem_side = configured
+                ENERGY_STATE.warned_missing = false
+                return configured
+            end
+        elseif not ENERGY_STATE.warned_config then
+            print("Configured energy_modem_side not found: " .. tostring(configured))
+            ENERGY_STATE.warned_config = true
+        end
+    end
+
+    for _, name in ipairs(peripheral.getNames()) do
+        if peripheral.getType(name) == "modem" then
+            local ok, err = pcall(rednet.open, name)
+            if not ok then
+                print("Energy modem open failed on " .. tostring(name) .. ": " .. tostring(err))
+            end
+            if rednet.isOpen(name) then
+                ENERGY_STATE.modem_side = name
+                ENERGY_STATE.warned_config = false
+                ENERGY_STATE.warned_missing = false
+                return name
+            end
+        end
+    end
+
+    if not ENERGY_STATE.warned_missing then
+        print("No modem available for energy broadcast")
+        ENERGY_STATE.warned_missing = true
+    end
+    ENERGY_STATE.modem_side = nil
+    return nil
+end
+
+local function send_energy_update()
+    local data = get_gate_energy()
+    if not data then
+        return
+    end
+
+    local modem = open_energy_modem()
+    if not modem then
+        return
+    end
+
+    data.type = "energy"
+    local ok, err = pcall(rednet.broadcast, data, ENERGY_PROTOCOL)
+    if not ok then
+        print("Failed to send energy: " .. tostring(err))
+    end
 end
 
 local function is_wormhole_active()
@@ -720,6 +804,12 @@ local function handle_timer_event(timer_id)
     TIMERS[name] = nil
     TIMER_LOOKUP[timer_id] = nil
 
+    if name == "energy" then
+        send_energy_update()
+        start_timer("energy", 1)
+        return
+    end
+
     if name == "countdown" then
         if not STATE.connected then
             reset_timer()
@@ -962,6 +1052,7 @@ local function main_loop()
     if not resume_active_wormhole() then
         screen()
     end
+    start_timer("energy", 1)
     while true do
         local event = { os.pullEventRaw() }
         if event[1] == "terminate" then

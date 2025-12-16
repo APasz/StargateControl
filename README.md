@@ -6,7 +6,12 @@ CC:Tweaked/ComputerCraft scripts for driving a Stargate from a monitor UI, raisi
 - `dial.lua` — main Stargate controller; renders the monitor menu, supports fast/slow dialing, tracks incoming/outgoing wormholes, and resumes if a wormhole is already open after reboot.
 - `dial_settings.lua` — template for the dialer `settings.lua`; fetched by the client when no local settings exist.
 - `addresses.lua` — list of named gates. Entries can hide or require sites (see below).
-- `utils.lua` — shared helpers for monitors, redstone, address formatting, dialing, and input handling.
+- `utils.lua` — thin facade that re-exports shared helpers used across the apps.
+- `address_utils.lua` — site detection, filtering, and address formatting helpers.
+- `monitor_utils.lua` — monitor rendering helpers (line wrapping, colour resets, etc).
+- `peripheral_utils.lua` — Stargate interface detection, resets, and redstone helpers.
+- `menu_utils.lua` — layout and input helpers for the address list.
+- `dialing_utils.lua` — fast/slow dialing routines.
 - `alarm.lua` — siren/indicator UI driven by a redstone input with buttons to silence or toggle outputs.
 - `alarm_settings.lua` — template for the alarm `settings.lua`.
 - `sync/file_list.lua` — manifest of files shared over rednet, grouped by scope (`shared`, `dialing`, `alarming`, `server`).
