@@ -4,7 +4,7 @@ local REQUEST_PROTOCOL = "files_request"
 local REPLY_PROTOCOL = "files_reply"
 local SERVER_NAME = "SGServer"
 local FILE_LIST_NAME = "file_list.lua"
-local SCOPE_ALIASES = { dial = "dialing", alarm = "alarming", server = "server" }
+local SCOPE_ALIASES = { dial = "dialing", alarm = "alarming", server = "server", aux = "auxiliary" }
 
 local function build_config_content(primary_file_override)
     if not primary_file_override or primary_file_override == "" then
