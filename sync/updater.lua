@@ -121,11 +121,6 @@ end
 
 local file_list = load_file_list()
 local commit_name, commit_err = fetch_latest_commit_name()
-if commit_name then
-    print("Latest commit: " .. commit_name)
-elseif commit_err then
-    print("Latest commit unavailable: " .. tostring(commit_err))
-end
 
 local paths = collect_paths(file_list)
 
@@ -141,4 +136,9 @@ if success then
     print("Done!")
 else
     print("Done (with errors; see above)")
+end
+if commit_name then
+    print("Latest commit: " .. commit_name)
+elseif commit_err then
+    print("Latest commit unavailable: " .. tostring(commit_err))
 end
