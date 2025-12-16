@@ -195,15 +195,17 @@ local function render_message(modem_side, sender, protocol, payload)
     local line
     if energy then
         line = "Energy: " .. (format_energy(energy) or tostring(energy))
+        SG_UTILS.update_line(line, 1)
     end
     if energy then
         line = "Capacity: " .. (format_energy(capacity) or tostring(capacity))
+        SG_UTILS.update_line(line, 2)
     end
     if energy then
         line = "Target: " .. (format_energy(target) or tostring(target))
+        SG_UTILS.update_line(line, 3)
     end
 
-    SG_UTILS.update_line(line, 1)
     STATE.status = "message"
 end
 
