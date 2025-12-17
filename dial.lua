@@ -111,7 +111,6 @@ local CANCEL_EVENT_BLACKLIST = {
     stargate_reconstructing_entity = true,
     stargate_message = true,
     stargate_message_received = true,
-    stargate_outgoing_wormhole = true,
 }
 
 local function send_incoming_message()
@@ -930,7 +929,7 @@ local function handle_timer_event(timer_id)
 
     if name == "countdown_wait" then
         -- Poll until the wormhole is established, abort if it closes.
-        if not (STATE.connected and STATE.outbound == true and is_wormhole_active()) then
+        if not (STATE.connected and STATE.outbound == true) then
             reset_timer()
             return
         end
