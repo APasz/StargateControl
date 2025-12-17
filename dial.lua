@@ -320,6 +320,10 @@ local function send_alarm_update(active, force)
         return
     end
 
+    if active and STATE.outbound == true then
+        return
+    end
+
     local now = (os.epoch and os.epoch("utc")) or (os.clock and (os.clock() * 1000)) or nil
     if not force and ALARM_STATE.last_active == active then
         return
@@ -1109,6 +1113,7 @@ end
 
 local function stargate_chevron_engaged(p2, count, engaged, incoming, symbol)
     if incoming then
+        STATE.outbound = false
         if STATE.outbound ~= true then
             send_alarm_update(true)
         end
