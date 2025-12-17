@@ -173,10 +173,12 @@ local function get_gate_energy()
     if not INF_GATE or type(INF_GATE.getEnergy) ~= "function" then
         return nil
     end
-    local energy = INF_GATE.getEnergy()
-    local capacity = INF_GATE.getEnergyCapacity()
-    local target = INF_GATE.getEnergyTarget()
-    return { energy = energy, capacity = capacity, target = target }
+    return {
+        inf_energy = INF_GATE.getEnergy(),
+        capacity = INF_GATE.getEnergyCapacity(),
+        target = INF_GATE.getEnergyTarget(),
+        sg_energy = INF_GATE.getStargateEnergy(),
+    }
 end
 
 local function open_energy_modem()
