@@ -843,6 +843,39 @@ local function get_open_seconds()
     return math.max(math.floor(ticks / 20), 0)
 end
 
+local function ensure_connection_timers()
+    if STATE.outbound == true then
+        -- If the countdown timer vanished, restart it with the best remaining value we have.
+        if STATE.timeout_remaining and not TIMERS.countdown then
+            show_disconnect_line(STATE.timeout_remaining)
+            start_timer("countdown", 1)
+            return
+        end
+
+        -- If we're waiting for the gate to finish opening and lost the wait timer, re-arm it.
+        if not (TIMERS.countdown or TIMERS.countdown_wait) then
+            local remaining = STATE.pending_timeout
+            if remaining == nil then
+                local open_seconds = get_open_seconds()
+                if open_seconds then
+                    remaining = math.max(SG_SETTINGS.timeout - open_seconds, 0)
+                end
+            end
+            start_countdown_when_established(remaining)
+        end
+    elseif STATE.outbound == false then
+        -- Keep incoming counters alive if their timer was dropped.
+        if is_wormhole_active() and STATE.incoming_seconds and STATE.incoming_seconds >= 0 and not TIMERS.incoming then
+            local open_seconds = get_open_seconds()
+            if open_seconds and open_seconds > STATE.incoming_seconds then
+                STATE.incoming_seconds = open_seconds
+                update_incoming_counter_line()
+            end
+            start_timer("incoming", 1)
+        end
+    end
+end
+
 local function start_incoming_counter(initial_seconds)
     clear_incoming_counter()
     STATE.incoming_seconds = math.max(math.floor(initial_seconds or 0), 0)
@@ -906,6 +939,7 @@ local function handle_timer_event(timer_id)
 
     if name == "energy" then
         send_energy_update()
+        ensure_connection_timers()
         start_timer("energy", 1)
         return
     end
@@ -1154,6 +1188,8 @@ local function show_error(err)
     SG_UTILS.update_line("See terminal for traceback", 3)
 end
 
+local count = 1
+
 local function main_loop()
     local resumed = resume_active_wormhole()
     if not resumed then
@@ -1164,6 +1200,8 @@ local function main_loop()
     end
     start_timer("energy", 1)
     while true do
+        print("run" .. tostring(count))
+        count = count + 1
         local event = { os.pullEventRaw() }
         if event[1] == "terminate" then
             if handle_terminate() then
