@@ -1109,7 +1109,9 @@ end
 
 local function stargate_chevron_engaged(p2, count, engaged, incoming, symbol)
     if incoming then
-        send_alarm_update(true)
+        if STATE.outbound ~= true then
+            send_alarm_update(true)
+        end
         local rs = SG_UTILS.get_inf_rs()
         if SG_SETTINGS.rs_income_alarm and rs then
             rs.setOutput(SG_SETTINGS.rs_income_alarm, true)
@@ -1122,6 +1124,10 @@ local function stargate_chevron_engaged(p2, count, engaged, incoming, symbol)
 end
 
 local function stargate_incoming_wormhole(p2, address)
+    if STATE.outbound == true then
+        send_alarm_update(false)
+        return
+    end
     show_incoming_banner()
     STATE.outbound = false
     STATE.connected = true
