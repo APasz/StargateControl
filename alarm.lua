@@ -65,6 +65,11 @@ local MODEM_STATE = {
 }
 local ALARM_PROTOCOL = AL_SETTINGS.alarm_protocol or "sg_alarm"
 local remote_alarm_active = nil
+local remote_alarm_sources = {
+    rednet = nil,
+    manual_incoming = false,
+    manual_outgoing = false,
+}
 local debounce_reads = tonumber(AL_SETTINGS.debounce_reads) or 1
 
 local phase_timer = nil
@@ -248,8 +253,10 @@ local function render_screen()
     mon.setCursorPos(1, 2)
     mon.write("Siren: " .. (toggle_enabled and "ON" or "OFF"))
 
-    button_regions.toggle = draw_button(mon, "[ TOGGLE SIREN ]", 4)
-    button_regions.cancel = draw_button(mon, "[ CANCEL ALARM ]", 5)
+    button_regions.toggle = draw_button(mon, "[TOGGLE SIREN]", 4)
+    button_regions.cancel = draw_button(mon, "[CANCEL ALARM]", 5)
+    button_regions.engage_incoming = draw_button(mon, "[ENGAGE INCOM]", 6)
+    button_regions.engage_outgoing = draw_button(mon, "[ENGAGE OUTGO]", 7)
 end
 
 local function start_alarm()
@@ -317,6 +324,33 @@ local function refresh_input_state(raw_override, skip_debounce)
     end
 end
 
+local function recompute_remote_alarm_active()
+    local active = remote_alarm_sources.rednet == true or remote_alarm_sources.manual_incoming or remote_alarm_sources.manual_outgoing
+    if remote_alarm_sources.rednet == nil and not remote_alarm_sources.manual_incoming and not remote_alarm_sources.manual_outgoing then
+        remote_alarm_active = nil
+    else
+        remote_alarm_active = active
+    end
+end
+
+local function update_remote_alarm_source(source, value)
+    if source == "rednet" then
+        if value ~= true and value ~= false then
+            value = nil
+        end
+    else
+        value = value == true
+    end
+    remote_alarm_sources[source] = value
+    recompute_remote_alarm_active()
+    refresh_input_state(nil, true)
+end
+
+local function toggle_manual_alarm(kind)
+    local key = kind == "outgoing" and "manual_outgoing" or "manual_incoming"
+    update_remote_alarm_source(key, not remote_alarm_sources[key])
+end
+
 local function advance_phase()
     if not alarm_active then
         return
@@ -354,8 +388,7 @@ local function handle_rednet_alarm(_, payload, protocol)
         return
     end
 
-    remote_alarm_active = payload.active == true
-    refresh_input_state(nil, true)
+    update_remote_alarm_source("rednet", payload.active == true)
 end
 
 local function handle_timer(id)
@@ -396,6 +429,10 @@ local function handle_monitor_touch(_, x, y)
         toggle_enabled = not toggle_enabled
         update_toggle_output()
         render_screen()
+    elseif in_region(button_regions.engage_incoming, x, y) then
+        toggle_manual_alarm("incoming")
+    elseif in_region(button_regions.engage_outgoing, x, y) then
+        toggle_manual_alarm("outgoing")
     end
 end
 
