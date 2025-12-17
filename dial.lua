@@ -662,12 +662,6 @@ local function dial_with_cancel(gate, fast)
             elseif name == "stargate_chevron_engaged" and event[4] == true then
                 cancel_requested = true
                 cancel_reason = cancel_reason or "incoming"
-            elseif name == "timer" then
-                local tname = timer_name(event[2])
-                if tname then
-                    cancel_requested = true
-                    cancel_reason = cancel_reason or tname
-                end
             end
         end
     end
