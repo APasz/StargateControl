@@ -858,21 +858,19 @@ local function run_timer_task(name, now)
 
     if name == "incoming" then
         if STATE.outbound == false then
-            if is_wormhole_active() then
-                local seconds = get_open_seconds()
-                if seconds then
-                    seconds = math.max(seconds, 0)
-                    if seconds ~= STATE.incoming_seconds then
-                        STATE.incoming_seconds = seconds
-                        update_incoming_counter_line()
-                    end
-                else
-                    STATE.incoming_seconds = (STATE.incoming_seconds or 0) + 1
+            local seconds = get_open_seconds()
+            if seconds then
+                seconds = math.max(seconds, 0)
+                if seconds ~= STATE.incoming_seconds then
+                    STATE.incoming_seconds = seconds
                     update_incoming_counter_line()
                 end
-                send_alarm_update(true, true)
-                send_env_status_message()
+            else
+                STATE.incoming_seconds = (STATE.incoming_seconds or 0) + 1
+                update_incoming_counter_line()
             end
+            send_alarm_update(true, true)
+            send_env_status_message()
             start_timer("incoming", 1)
         end
         return
@@ -1050,6 +1048,10 @@ local function handle_terminate()
 end
 
 local function handle_user_input(ev, p2, p3, p4)
+    if STATE.waiting_disconnect then
+        return
+    end
+
     if has_timer("screen") then
         clear_screen_timer()
         if not STATE.connected and STATE.outbound ~= false then
@@ -1221,8 +1223,6 @@ local function show_error(err)
     SG_UTILS.update_line("See terminal for traceback", 3)
 end
 
-local count = 1
-
 local function main_loop()
     local resumed = resume_active_wormhole()
     if not resumed then
@@ -1234,8 +1234,6 @@ local function main_loop()
     start_timer("energy", 1)
     schedule_tick(0)
     while true do
-        print("run" .. tostring(count))
-        count = count + 1
         local event = { os.pullEventRaw() }
         if event[1] == "terminate" then
             if handle_terminate() then
