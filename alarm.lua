@@ -5,12 +5,17 @@ local INF_RS = SG_UTILS.get_inf_rs()
 local SETTINGS_PATH = "settings.lua"
 local DEFAULT_SETTINGS_CONTENT = [[return {
     side_toggle = "front",
-    side_input = "bottom",
+    side_input = nil,
+    -- optional redstone input to trigger alarms (leave nil to rely on rednet only)
     phase_sides = { "left", "top", "right" },
     flash_delay = 0.28,
     status_flash_duration = 0.25,
     status_flash_interval = 0.75,
     debounce_reads = 1,
+    alarm_protocol = "sg_alarm",
+    -- rednet protocol used for incoming-wormhole alarms
+    site = nil,
+    -- optional site name to filter alarm broadcasts (falls back to computer label suffix)
 }
 ]]
 
@@ -40,6 +45,27 @@ local function load_or_create_settings()
     return config
 end
 local AL_SETTINGS = load_or_create_settings()
+local function get_client_config_side()
+    local ok, cfg = pcall(require, "client_config")
+    if not ok or type(cfg) ~= "table" then
+        return nil
+    end
+    if type(cfg.side) == "string" then
+        return cfg.side
+    end
+    return nil
+end
+local CLIENT_MODEM_SIDE = get_client_config_side()
+local _, LOCAL_SITE = SG_UTILS.get_site(AL_SETTINGS.site)
+
+local MODEM_STATE = {
+    side = nil,
+    warned_config = false,
+    warned_missing = false,
+}
+local ALARM_PROTOCOL = AL_SETTINGS.alarm_protocol or "sg_alarm"
+local remote_alarm_active = nil
+local debounce_reads = tonumber(AL_SETTINGS.debounce_reads) or 1
 
 local phase_timer = nil
 local status_flash_timer = nil
@@ -58,6 +84,50 @@ local function set_toggle(active)
     if rs and AL_SETTINGS.side_toggle then
         rs.setOutput(AL_SETTINGS.side_toggle, active)
     end
+end
+local function open_alarm_modem()
+    if MODEM_STATE.side and rednet.isOpen(MODEM_STATE.side) then
+        return MODEM_STATE.side
+    end
+
+    if CLIENT_MODEM_SIDE then
+        if peripheral.getType(CLIENT_MODEM_SIDE) == "modem" then
+            local ok, err = pcall(rednet.open, CLIENT_MODEM_SIDE)
+            if not ok then
+                print("Alarm modem open failed on " .. tostring(CLIENT_MODEM_SIDE) .. ": " .. tostring(err))
+            end
+            if rednet.isOpen(CLIENT_MODEM_SIDE) then
+                MODEM_STATE.side = CLIENT_MODEM_SIDE
+                MODEM_STATE.warned_missing = false
+                return CLIENT_MODEM_SIDE
+            end
+        elseif not MODEM_STATE.warned_config then
+            print("Configured alarm modem side not found: " .. tostring(CLIENT_MODEM_SIDE))
+            MODEM_STATE.warned_config = true
+        end
+    end
+
+    for _, name in ipairs(peripheral.getNames()) do
+        if peripheral.getType(name) == "modem" then
+            local ok, err = pcall(rednet.open, name)
+            if not ok then
+                print("Alarm modem open failed on " .. tostring(name) .. ": " .. tostring(err))
+            end
+            if rednet.isOpen(name) then
+                MODEM_STATE.side = name
+                MODEM_STATE.warned_config = false
+                MODEM_STATE.warned_missing = false
+                return name
+            end
+        end
+    end
+
+    if not MODEM_STATE.warned_missing then
+        print("No modem available for alarm rednet")
+        MODEM_STATE.warned_missing = true
+    end
+    MODEM_STATE.side = nil
+    return nil
 end
 
 local function clear_phase_outputs()
@@ -205,16 +275,35 @@ local function stop_alarm()
     render_screen()
 end
 
-local function refresh_input_state()
-    local input_active = SG_UTILS.rs_input(AL_SETTINGS.side_input)
-    if input_active ~= last_raw_input then
-        input_stable_count = 1
-        last_raw_input = input_active
-    else
-        input_stable_count = input_stable_count + 1
+local function read_input_active(raw_override)
+    if raw_override ~= nil then
+        return raw_override
     end
-    if input_active ~= stable_input and input_stable_count >= AL_SETTINGS.debounce_reads then
+
+    local redstone_active = SG_UTILS.rs_input(AL_SETTINGS.side_input)
+    if remote_alarm_active == nil then
+        return redstone_active
+    end
+
+    return remote_alarm_active or redstone_active
+end
+
+local function refresh_input_state(raw_override, skip_debounce)
+    local input_active = read_input_active(raw_override)
+    if skip_debounce then
         stable_input = input_active
+        last_raw_input = input_active
+        input_stable_count = debounce_reads
+    else
+        if input_active ~= last_raw_input then
+            input_stable_count = 1
+            last_raw_input = input_active
+        else
+            input_stable_count = input_stable_count + 1
+        end
+        if input_active ~= stable_input and input_stable_count >= debounce_reads then
+            stable_input = input_active
+        end
     end
 
     if stable_input and not manual_cancelled then
@@ -234,6 +323,36 @@ local function advance_phase()
     end
     phase_index = (phase_index % #AL_SETTINGS.phase_sides) + 1
     set_phase(AL_SETTINGS.phase_sides[phase_index])
+end
+
+local function ensure_alarm_modem_open()
+    if MODEM_STATE.side and rednet.isOpen(MODEM_STATE.side) then
+        return MODEM_STATE.side
+    end
+    return open_alarm_modem()
+end
+
+local function site_matches(message_site)
+    if not (LOCAL_SITE and message_site) then
+        return true
+    end
+    local _, incoming_site = SG_UTILS.normalise_name(message_site)
+    return incoming_site == nil or incoming_site == LOCAL_SITE
+end
+
+local function handle_rednet_alarm(_, payload, protocol)
+    if protocol ~= ALARM_PROTOCOL then
+        return
+    end
+    if type(payload) ~= "table" or payload.type ~= "incoming_alarm" then
+        return
+    end
+    if not site_matches(payload.site) then
+        return
+    end
+
+    remote_alarm_active = payload.active == true
+    refresh_input_state(nil, true)
 end
 
 local function handle_timer(id)
@@ -279,6 +398,7 @@ end
 
 local function event_loop()
     render_screen()
+    ensure_alarm_modem_open()
     refresh_input_state()
     print("Ready!")
     while true do
@@ -289,6 +409,8 @@ local function event_loop()
             handle_monitor_touch(p2, p3, p4)
         elseif ev == "redstone" then
             refresh_input_state()
+        elseif ev == "rednet_message" then
+            handle_rednet_alarm(p2, p3, p4)
         elseif ev == "terminate" then
             SG_UTILS.clear_all_lines()
             SG_UTILS.show_top_message("! UNAVAILABLE !")
@@ -297,6 +419,10 @@ local function event_loop()
 
         if ev ~= "redstone" and ev ~= "timer" then
             refresh_input_state()
+        end
+
+        if not MODEM_STATE.side or not rednet.isOpen(MODEM_STATE.side) then
+            ensure_alarm_modem_open()
         end
     end
 end

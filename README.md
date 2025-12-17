@@ -12,7 +12,7 @@ CC:Tweaked/ComputerCraft scripts for driving a Stargate from a monitor UI, raisi
 - `peripheral_utils.lua` — Stargate interface detection, resets, and redstone helpers.
 - `menu_utils.lua` — layout and input helpers for the address list.
 - `dialing_utils.lua` — fast/slow dialing routines.
-- `alarm.lua` — siren/indicator UI driven by a redstone input with buttons to silence or toggle outputs.
+- `alarm.lua` — siren/indicator UI driven by rednet alarm broadcasts (with optional redstone input fallback) plus buttons to silence or toggle outputs.
 - `alarm_settings.lua` — template for the alarm `settings.lua`.
 - `sync/file_list.lua` — manifest of files shared over rednet, grouped by scope (`shared`, `dialing`, `alarming`, `server`).
 - `sync/server.lua` — rednet file host; serves files out of `disk/` using `file_list.lua`.
@@ -24,7 +24,7 @@ CC:Tweaked/ComputerCraft scripts for driving a Stargate from a monitor UI, raisi
 - CC:Tweaked (or ComputerCraft) with a Stargate interface peripheral: `advanced_crystal_interface`, `crystal_interface`, or `basic_interface`.
 - A monitor (colour preferred). The dialer will fall back to the terminal if none is present.
 - Optional redstone relay; otherwise the computer’s native redstone API is used.
-- Wireless/ender modems for rednet sync; HTTP enabled if you use `updater.lua`.
+- Wireless/ender modems for rednet sync + alarm/energy broadcasts; HTTP enabled if you use `updater.lua`.
 
 ## Install / Update
 - Manual copy works fine, or fetch `sync/updater.lua` (save/run as `updater`) on the computer that has a `disk/` directory; it pulls everything listed in `sync/file_list.lua` into `disk/` and refreshes `updater.lua`.
@@ -46,12 +46,14 @@ Each entry needs a `site`, `galaxy`, and `address` (7–9 numbers). Optional fil
 `dial.lua` creates `settings.lua` beside itself if missing; `dial_settings.lua` holds the same defaults used by `updater`/`client` when seeding a fresh install:
 ```lua
 return {
-    site = nil,            -- optional site name for address filtering
-    rs_fast_dial = "left", -- redstone input: high = fast-dial symbols; nil to ignore
-    rs_income_alarm = nil, -- redstone output while an incoming wormhole is active
-    rs_safe_env = nil,     -- side to detect redstone signal if the local environment is safe (set to true to force always-safe)
-    timeout = 60,          -- seconds before outbound wormholes auto-disconnect
+    site = nil,               -- optional site name for address filtering
+    rs_fast_dial = "left",    -- redstone input: high = fast-dial symbols; nil to ignore
+    rs_income_alarm = nil,    -- optional redstone output while an incoming wormhole is active
+    alarm_protocol = "sg_alarm", -- rednet protocol used for incoming-wormhole alarms
+    rs_safe_env = nil,        -- side to detect redstone signal if the local environment is safe (set to true/false to force always safe/unsafe)
+    timeout = 60,             -- seconds before outbound wormholes auto-disconnect
     dialing_colour = "green", -- colour to use during dialing progress
+    energy_protocol = "sg_aux", -- rednet protocol used when sending energy updates
 }
 ```
 
@@ -60,12 +62,14 @@ return {
 ```lua
 return {
     side_toggle = "front",
-    side_input = "bottom",
+    side_input = nil,   -- optional redstone input fallback; nil to rely solely on rednet
     phase_sides = { "left", "top", "right" },
     flash_delay = 0.28,
     status_flash_duration = 0.25,
     status_flash_interval = 0.75,
     debounce_reads = 1,
+    alarm_protocol = "sg_alarm", -- rednet protocol used for incoming-wormhole alarms
+    site = nil,            -- optional site filter for alarm broadcasts
 }
 ```
 
@@ -86,13 +90,13 @@ Run `client setup` to create/refresh this file; pass a second arg to set `primar
 - Manual entry: type numbers separated by spaces/commas/dashes; 6 symbols auto-append `0` as origin.
 - Fast/slow dialing is chosen by the `rs_fast_dial` input; the bottom-right corner shows `>` when fast-dial is active, `#` otherwise.
 - Outbound wormholes display a countdown and auto-disconnect after `timeout` seconds; tap the monitor to drop early.
-- Incoming wormholes paint a red banner, count open time, raise `rs_income_alarm` if set, send the local env status when `rs_safe_env` is configured, and let you tap the monitor to send `sg_disconnect` to the remote gate when supported.
+- Incoming wormholes paint a red banner, count open time, broadcast an alarm over rednet (`alarm_protocol` via `alarm_modem_side`/`client_config.side` or any modem), optionally raise `rs_income_alarm`, send the local env status when `rs_safe_env` is configured, and let you tap the monitor to send `sg_disconnect` to the remote gate when supported.
 - The dialer shows remote env status messages during an active outgoing wormhole (when the other side reports one).
 - If the computer reboots while a wormhole is open, the UI resumes and shows the active connection.
 
 ## Alarm (`alarm.lua`)
-- Intended for a separate computer/monitor fed by the dialer’s `rs_income_alarm` (or any redstone input).
-- Inputs: `side_input` (default `bottom`) starts/stops the alarm. Outputs: `side_toggle` (default `front`) for the siren plus cycling lights on `phase_sides` (`left`, `top`, `right`).
+- Listens for rednet alarm broadcasts on `alarm_protocol` (modem from `modem_side`, `client_config.side`, or the first available) and can also react to `side_input` redstone if set.
+- Outputs: `side_toggle` (default `front`) for the siren plus cycling lights on `phase_sides` (`left`, `top`, `right`).
 - On-screen buttons: `[ TOGGLE SIREN ]` toggles the siren output; `[ CANCEL ALARM ]` silences while the input stays high.
 
 ## File Sync (optional)

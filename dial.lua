@@ -9,6 +9,8 @@ local DEFAULT_SETTINGS_CONTENT = [[return {
     -- side to detect redstone signal meaning to fast dial
     rs_income_alarm = nil,
     -- side to output redstone signal during incoming wormhole
+    alarm_protocol = "sg_alarm",
+    -- rednet protocol used when sending incoming wormhole alarms
     rs_safe_env = nil,
     -- side to detect redstone signal if the local environment is safe (set to true to force always-safe)
     timeout = 60,
@@ -49,6 +51,18 @@ local function load_or_create_settings()
 end
 local SG_SETTINGS = load_or_create_settings()
 
+local function get_client_config_side()
+    local ok, cfg = pcall(require, "client_config")
+    if not ok or type(cfg) ~= "table" then
+        return nil
+    end
+    if type(cfg.side) == "string" then
+        return cfg.side
+    end
+    return nil
+end
+local CLIENT_MODEM_SIDE = get_client_config_side()
+
 local _, LOCAL_SITE = SG_UTILS.get_site(SG_SETTINGS.site)
 
 local INF_GATE = SG_UTILS.get_inf_gate()
@@ -72,6 +86,14 @@ local STATE = {
 }
 local TIMERS = {}
 local TIMER_LOOKUP = {}
+local ALARM_STATE = {
+    modem_side = nil,
+    warned_config = false,
+    warned_missing = false,
+    last_active = nil,
+    last_sent_at = nil,
+}
+local ALARM_PROTOCOL = SG_SETTINGS.alarm_protocol or "sg_alarm"
 local ENERGY_STATE = {
     modem_side = nil,
     warned_config = false,
@@ -181,6 +203,51 @@ local function get_gate_energy()
     }
 end
 
+local function open_alarm_modem()
+    if ALARM_STATE.modem_side and rednet.isOpen(ALARM_STATE.modem_side) then
+        return ALARM_STATE.modem_side
+    end
+
+    if CLIENT_MODEM_SIDE then
+        if peripheral.getType(CLIENT_MODEM_SIDE) == "modem" then
+            local ok, err = pcall(rednet.open, CLIENT_MODEM_SIDE)
+            if not ok then
+                print("Alarm modem open failed on " .. tostring(CLIENT_MODEM_SIDE) .. ": " .. tostring(err))
+            end
+            if rednet.isOpen(CLIENT_MODEM_SIDE) then
+                ALARM_STATE.modem_side = CLIENT_MODEM_SIDE
+                ALARM_STATE.warned_missing = false
+                return CLIENT_MODEM_SIDE
+            end
+        elseif not ALARM_STATE.warned_config then
+            print("Configured alarm modem side not found: " .. tostring(CLIENT_MODEM_SIDE))
+            ALARM_STATE.warned_config = true
+        end
+    end
+
+    for _, name in ipairs(peripheral.getNames()) do
+        if peripheral.getType(name) == "modem" then
+            local ok, err = pcall(rednet.open, name)
+            if not ok then
+                print("Alarm modem open failed on " .. tostring(name) .. ": " .. tostring(err))
+            end
+            if rednet.isOpen(name) then
+                ALARM_STATE.modem_side = name
+                ALARM_STATE.warned_config = false
+                ALARM_STATE.warned_missing = false
+                return name
+            end
+        end
+    end
+
+    if not ALARM_STATE.warned_missing then
+        print("No modem available for alarm broadcast")
+        ALARM_STATE.warned_missing = true
+    end
+    ALARM_STATE.modem_side = nil
+    return nil
+end
+
 local function open_energy_modem()
     if ENERGY_STATE.modem_side and rednet.isOpen(ENERGY_STATE.modem_side) then
         return ENERGY_STATE.modem_side
@@ -244,6 +311,39 @@ local function send_energy_update()
     if not ok then
         print("Failed to send energy: " .. tostring(err))
     end
+end
+
+local function send_alarm_update(active, force)
+    local protocol = ALARM_PROTOCOL or "sg_alarm"
+    if not protocol or protocol == "" then
+        return
+    end
+
+    local now = (os.epoch and os.epoch("utc")) or (os.clock and (os.clock() * 1000)) or nil
+    if not force and ALARM_STATE.last_active == active then
+        return
+    end
+    if force and ALARM_STATE.last_active == active and now and ALARM_STATE.last_sent_at and now - ALARM_STATE.last_sent_at < 4000 then
+        return
+    end
+
+    local modem = open_alarm_modem()
+    if not modem then
+        return
+    end
+
+    local payload = {
+        type = "incoming_alarm",
+        active = active == true,
+        site = LOCAL_SITE,
+    }
+    local ok, err = pcall(rednet.broadcast, payload, protocol)
+    if not ok then
+        print("Failed to send alarm signal: " .. tostring(err))
+        return
+    end
+    ALARM_STATE.last_active = active
+    ALARM_STATE.last_sent_at = now
 end
 
 local function is_wormhole_active()
@@ -789,11 +889,13 @@ local function resume_active_wormhole()
             remaining = math.max(remaining - open_seconds, 0)
         end
         start_countdown_when_established(remaining)
+        send_alarm_update(false)
     else
         STATE.outbound = false
         STATE.gate_id = addr_str ~= "-" and addr_str or "Incoming"
         show_incoming_banner()
         start_incoming_counter(open_seconds)
+        send_alarm_update(true, true)
         send_env_status_message()
     end
 
@@ -861,6 +963,7 @@ local function handle_timer_event(timer_id)
     if name == "incoming" then
         STATE.incoming_seconds = (STATE.incoming_seconds or 0) + 1
         update_incoming_counter_line()
+        send_alarm_update(true, true)
         send_env_status_message()
         start_timer("incoming", 1)
         return
@@ -917,6 +1020,7 @@ local function stargate_disconnected(p2, feedback_num, feedback_desc)
     if STATE.connected then
         reset_timer()
     end
+    send_alarm_update(false)
     STATE.connected = false
     STATE.outbound = nil
     STATE.gate = nil
@@ -944,6 +1048,7 @@ end
 
 local function stargate_chevron_engaged(p2, count, engaged, incoming, symbol)
     if incoming then
+        send_alarm_update(true)
         local rs = SG_UTILS.get_inf_rs()
         if SG_SETTINGS.rs_income_alarm and rs then
             rs.setOutput(SG_SETTINGS.rs_income_alarm, true)
@@ -961,11 +1066,13 @@ local function stargate_incoming_wormhole(p2, address)
     STATE.gate = nil
     STATE.gate_id = "Incoming"
     STATE.disconnected_early = false
+    send_alarm_update(true, true)
     start_incoming_counter(get_open_seconds())
     send_env_status_message()
 end
 
 local function stargate_outgoing_wormhole(p2, address)
+    send_alarm_update(false)
     clear_screen_timer()
     SG_UTILS.update_line("Wormhole Open", 3)
     SG_UTILS.update_line("", 4)
@@ -978,6 +1085,7 @@ local function stargate_outgoing_wormhole(p2, address)
 end
 
 local function stargate_reset(p2, feedback_num, feedback_desc)
+    send_alarm_update(false)
     SG_UTILS.reset_outputs(SG_UTILS.get_inf_rs())
 end
 
@@ -1054,8 +1162,12 @@ local function show_error(err)
 end
 
 local function main_loop()
-    if not resume_active_wormhole() then
+    local resumed = resume_active_wormhole()
+    if not resumed then
+        send_alarm_update(false)
         screen()
+    elseif STATE.outbound ~= false then
+        send_alarm_update(false)
     end
     start_timer("energy", 1)
     while true do
