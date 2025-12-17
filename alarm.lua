@@ -350,6 +350,9 @@ local function handle_rednet_alarm(_, payload, protocol)
     if not site_matches(payload.site) then
         return
     end
+    if payload.outbound == true then
+        return
+    end
 
     remote_alarm_active = payload.active == true
     refresh_input_state(nil, true)

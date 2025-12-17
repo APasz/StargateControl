@@ -320,10 +320,6 @@ local function send_alarm_update(active, force)
         return
     end
 
-    if active and STATE.outbound == true then
-        return
-    end
-
     local now = (os.epoch and os.epoch("utc")) or (os.clock and (os.clock() * 1000)) or nil
     if not force and ALARM_STATE.last_active == active then
         return
@@ -340,6 +336,7 @@ local function send_alarm_update(active, force)
     local payload = {
         type = "incoming_alarm",
         active = active == true,
+        outbound = STATE.outbound,
         site = LOCAL_SITE,
     }
     local ok, err = pcall(rednet.broadcast, payload, protocol)
@@ -1016,7 +1013,7 @@ local function resume_active_wormhole()
             remaining = math.max(remaining - open_seconds, 0)
         end
         start_countdown_when_established(remaining)
-        send_alarm_update(false)
+        send_alarm_update(true)
     else
         STATE.outbound = false
         STATE.gate_id = addr_str ~= "-" and addr_str or "Incoming"
@@ -1144,7 +1141,7 @@ local function stargate_incoming_wormhole(p2, address)
 end
 
 local function stargate_outgoing_wormhole(p2, address)
-    send_alarm_update(false)
+    send_alarm_update(true)
     clear_screen_timer()
     SG_UTILS.update_line("Wormhole Open", 3)
     SG_UTILS.update_line("", 4)
