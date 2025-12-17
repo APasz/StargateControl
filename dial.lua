@@ -82,10 +82,12 @@ local STATE = {
     waiting_disconnect = false,
     incoming_seconds = 0,
     pending_timeout = nil,
+    countdown_deadline = nil,
     top_lines = 0,
 }
-local TIMERS = {}
-local TIMER_LOOKUP = {}
+local TICK_INTERVAL = 0.25 -- scheduler tick in seconds
+local TIMER_SCHEDULE = {}
+local TICK_TIMER_ID = nil
 local ALARM_STATE = {
     modem_side = nil,
     warned_config = false,
@@ -460,25 +462,26 @@ local function update_dial_progress(encoded_count)
     SG_UTILS.update_coloured_line(segments, 1, SG_UTILS.address_to_string(addr))
 end
 
-local function cancel_timer(name)
-    local id = TIMERS[name]
-    if id then
-        os.cancelTimer(id)
-        TIMER_LOOKUP[id] = nil
+local function now_ms()
+    if os.epoch then
+        return os.epoch("utc")
     end
-    TIMERS[name] = nil
+    return math.floor((os.clock and os.clock() or 0) * 1000)
+end
+
+local function cancel_timer(name)
+    TIMER_SCHEDULE[name] = nil
 end
 
 local function start_timer(name, delay)
     cancel_timer(name)
-    local id = os.startTimer(delay)
-    TIMERS[name] = id
-    TIMER_LOOKUP[id] = name
-    return id
+    local when = now_ms() + math.max(delay or 0, 0) * 1000
+    TIMER_SCHEDULE[name] = when
+    return when
 end
 
-local function timer_name(id)
-    return TIMER_LOOKUP[id]
+local function has_timer(name)
+    return TIMER_SCHEDULE[name] ~= nil
 end
 
 local function show_disconnect_line(value)
@@ -486,10 +489,9 @@ local function show_disconnect_line(value)
 end
 
 local function reset_timer()
-    cancel_timer("countdown")
-    cancel_timer("countdown_wait")
     STATE.pending_timeout = nil
     STATE.timeout_remaining = nil
+    STATE.countdown_deadline = nil
     SG_UTILS.update_line("", 2)
 end
 
@@ -505,19 +507,24 @@ local function start_countdown(remaining)
     if type(remaining) == "number" and remaining >= 0 then
         timeout = remaining
     end
+    timeout = math.max(timeout or 0, 0)
     STATE.timeout_remaining = timeout
+    STATE.countdown_deadline = now_ms() + (timeout * 1000)
     show_disconnect_line(STATE.timeout_remaining)
-    start_timer("countdown", 1)
 end
 
 local function start_countdown_when_established(remaining)
     -- Defer the disconnect timer until the wormhole is fully connected.
-    if TIMERS.countdown or TIMERS.countdown_wait then
+    if STATE.countdown_deadline or STATE.pending_timeout then
         return
     end
     clear_incoming_counter()
     reset_timer()
-    STATE.pending_timeout = remaining
+    if type(remaining) == "number" and remaining >= 0 then
+        STATE.pending_timeout = remaining
+    else
+        STATE.pending_timeout = nil
+    end
     if is_wormhole_open() then
         STATE.pending_timeout = nil
         start_countdown(remaining)
@@ -525,7 +532,6 @@ local function start_countdown_when_established(remaining)
     end
 
     show_disconnect_line("X")
-    start_timer("countdown_wait", 0.25)
 end
 
 local function clear_screen_timer()
@@ -843,37 +849,123 @@ local function get_open_seconds()
     return math.max(math.floor(ticks / 20), 0)
 end
 
-local function ensure_connection_timers()
-    if STATE.outbound == true then
-        -- If the countdown timer vanished, restart it with the best remaining value we have.
-        if STATE.timeout_remaining and not TIMERS.countdown then
-            show_disconnect_line(STATE.timeout_remaining)
-            start_timer("countdown", 1)
-            return
-        end
+local function run_timer_task(name, now)
+    if name == "energy" then
+        send_energy_update()
+        start_timer("energy", 1)
+        return
+    end
 
-        -- If we're waiting for the gate to finish opening and lost the wait timer, re-arm it.
-        if not (TIMERS.countdown or TIMERS.countdown_wait) then
-            local remaining = STATE.pending_timeout
-            if remaining == nil then
-                local open_seconds = get_open_seconds()
-                if open_seconds then
-                    remaining = math.max(SG_SETTINGS.timeout - open_seconds, 0)
+    if name == "incoming" then
+        if STATE.outbound == false and is_wormhole_active() then
+            local seconds = get_open_seconds()
+            if seconds then
+                seconds = math.max(seconds, 0)
+                if seconds ~= STATE.incoming_seconds then
+                    STATE.incoming_seconds = seconds
+                    update_incoming_counter_line()
                 end
-            end
-            start_countdown_when_established(remaining)
-        end
-    elseif STATE.outbound == false then
-        -- Keep incoming counters alive if their timer was dropped.
-        if is_wormhole_active() and STATE.incoming_seconds and STATE.incoming_seconds >= 0 and not TIMERS.incoming then
-            local open_seconds = get_open_seconds()
-            if open_seconds and open_seconds > STATE.incoming_seconds then
-                STATE.incoming_seconds = open_seconds
+            else
+                STATE.incoming_seconds = (STATE.incoming_seconds or 0) + 1
                 update_incoming_counter_line()
             end
+            send_alarm_update(true, true)
+            send_env_status_message()
             start_timer("incoming", 1)
         end
+        return
     end
+
+    if name == "screen" then
+        clear_screen_timer()
+        screen()
+        return
+    end
+
+    if name == "disconnect" then
+        if STATE.waiting_disconnect then
+            show_disconnected_screen()
+        else
+            clear_disconnect_fallback()
+        end
+        return
+    end
+end
+
+local function process_scheduled_timers(now)
+    for name, due in pairs(TIMER_SCHEDULE) do
+        if due and due <= now then
+            TIMER_SCHEDULE[name] = nil
+            run_timer_task(name, now)
+        end
+    end
+end
+
+local function maintain_connection_timers(now)
+    if not STATE.connected then
+        STATE.countdown_deadline = nil
+        STATE.pending_timeout = nil
+        STATE.timeout_remaining = nil
+        return
+    end
+
+    if STATE.outbound == true then
+        local open = is_wormhole_open()
+        if open then
+            if not STATE.countdown_deadline then
+                local timeout = STATE.pending_timeout
+                if timeout == nil then
+                    timeout = SG_SETTINGS.timeout
+                end
+                timeout = math.max(timeout or 0, 0)
+                STATE.pending_timeout = nil
+                STATE.timeout_remaining = timeout
+                STATE.countdown_deadline = now + (timeout * 1000)
+                show_disconnect_line(timeout)
+            end
+
+            if STATE.countdown_deadline then
+                local remaining_ms = STATE.countdown_deadline - now
+                if remaining_ms <= 0 then
+                    disconnect_now(false)
+                    return
+                end
+                local remaining = math.max(math.ceil(remaining_ms / 1000), 0)
+                if remaining ~= STATE.timeout_remaining then
+                    STATE.timeout_remaining = remaining
+                    show_disconnect_line(remaining)
+                end
+            end
+        else
+            STATE.countdown_deadline = nil
+            STATE.timeout_remaining = nil
+            if STATE.pending_timeout ~= nil then
+                show_disconnect_line("X")
+            end
+        end
+    elseif STATE.outbound == false then
+        if is_wormhole_active() then
+            local open_seconds = get_open_seconds()
+            if open_seconds then
+                open_seconds = math.max(open_seconds, 0)
+                if open_seconds ~= STATE.incoming_seconds then
+                    STATE.incoming_seconds = open_seconds
+                    update_incoming_counter_line()
+                end
+            end
+        end
+    end
+end
+
+local function schedule_tick(delay)
+    TICK_TIMER_ID = os.startTimer(delay or TICK_INTERVAL)
+end
+
+local function process_tick()
+    local now = now_ms()
+    process_scheduled_timers(now)
+    maintain_connection_timers(now)
+    schedule_tick(TICK_INTERVAL)
 end
 
 local function start_incoming_counter(initial_seconds)
@@ -929,76 +1021,9 @@ local function resume_active_wormhole()
 end
 
 local function handle_timer_event(timer_id)
-    local name = timer_name(timer_id)
-    if not name then
-        return
-    end
-
-    TIMERS[name] = nil
-    TIMER_LOOKUP[timer_id] = nil
-
-    if name == "energy" then
-        send_energy_update()
-        ensure_connection_timers()
-        start_timer("energy", 1)
-        return
-    end
-
-    if name == "countdown" then
-        if not STATE.connected then
-            reset_timer()
-            return
-        end
-
-        if STATE.timeout_remaining <= 0 then
-            disconnect_now(false)
-            return
-        end
-
-        show_disconnect_line(STATE.timeout_remaining)
-        STATE.timeout_remaining = STATE.timeout_remaining - 1
-        start_timer("countdown", 1)
-        return
-    end
-
-    if name == "countdown_wait" then
-        -- Poll until the wormhole is established, abort if it closes.
-        if not (STATE.connected and STATE.outbound == true) then
-            reset_timer()
-            return
-        end
-
-        if is_wormhole_open() then
-            local pending = STATE.pending_timeout
-            STATE.pending_timeout = nil
-            start_countdown(pending)
-        else
-            start_timer("countdown_wait", 0.25)
-        end
-        return
-    end
-
-    if name == "disconnect" then
-        if STATE.waiting_disconnect then
-            show_disconnected_screen()
-        else
-            cancel_timer("disconnect")
-        end
-        return
-    end
-
-    if name == "incoming" then
-        STATE.incoming_seconds = (STATE.incoming_seconds or 0) + 1
-        update_incoming_counter_line()
-        send_alarm_update(true, true)
-        send_env_status_message()
-        start_timer("incoming", 1)
-        return
-    end
-
-    if name == "screen" then
-        clear_screen_timer()
-        screen()
+    if TICK_TIMER_ID and timer_id == TICK_TIMER_ID then
+        TICK_TIMER_ID = nil
+        process_tick()
     end
 end
 
@@ -1006,7 +1031,7 @@ local function handle_redstone_event()
     if STATE.connected or STATE.outbound == false then
         return
     end
-    if TIMERS.screen then
+    if has_timer("screen") then
         clear_screen_timer()
     end
     screen()
@@ -1018,7 +1043,7 @@ local function handle_terminate()
 end
 
 local function handle_user_input(ev, p2, p3, p4)
-    if TIMERS.screen then
+    if has_timer("screen") then
         clear_screen_timer()
         if not STATE.connected and STATE.outbound ~= false then
             screen()
@@ -1199,6 +1224,7 @@ local function main_loop()
         send_alarm_update(false)
     end
     start_timer("energy", 1)
+    schedule_tick(0)
     while true do
         print("run" .. tostring(count))
         count = count + 1
