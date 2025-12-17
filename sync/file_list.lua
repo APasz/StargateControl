@@ -7,12 +7,13 @@ return {
         { filename = "alarm.lua", git = "alarm.lua", override=true },
         { filename = "settings.lua", git = "alarm_settings.lua", override=false },
     },
+    auxiliary = {
+        { filename = "auxiliary.lua", git = "auxiliary.lua", override=true },
+        { filename = "settings.lua", git = "auxiliary_settings.lua", override=false },
+    },
     server = {
         { filename = "server.lua", git = "sync/server.lua", override=true },
         { filename = "updater.lua", git = "sync/updater.lua", override=true },
-    },
-    auxiliary = {
-        { filename = "auxiliary.lua", git = "auxiliary.lua", override=true },
     },
     shared = {
         { filename = "utils.lua", git = "utils.lua", override=true },

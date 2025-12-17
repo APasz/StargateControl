@@ -3,8 +3,8 @@ local SG_UTILS = require("utils")
 
 local SETTINGS_PATH = "settings.lua"
 local DEFAULT_SETTINGS_CONTENT = [[return {
-    modem_side = "back",
-    -- side with wireless/ender modem; nil to auto-detect
+    site = nil,
+    -- optional site name to filter energy updates (falls back to computer label suffix)
     protocol = "sg_aux",
     -- optional rednet protocol filter; nil listens to any protocol
     monitor_scale = 1,
@@ -13,6 +13,18 @@ local DEFAULT_SETTINGS_CONTENT = [[return {
     -- seconds between listen heartbeats (used to refresh the modem status)
 }
 ]]
+
+local function get_client_config_side()
+    local ok, cfg = pcall(require, "client_config")
+    if not ok or type(cfg) ~= "table" then
+        return nil
+    end
+    if type(cfg.side) == "string" then
+        return cfg.side
+    end
+    return nil
+end
+local CLIENT_MODEM_SIDE = get_client_config_side()
 
 local function load_or_create_settings()
     if fs.exists(SETTINGS_PATH) then
@@ -39,45 +51,26 @@ local function load_or_create_settings()
     print("Created default settings.lua")
     return config
 end
-local SG_SETTINGS = load_or_create_settings()
+local AUX_SETTINGS = load_or_create_settings()
+
+local _, LOCAL_SITE = SG_UTILS.get_site(AUX_SETTINGS.site)
 
 local STATE = {
     modem_side = nil,
     status = nil,
 }
 
-local monitor_scale = tonumber(SG_SETTINGS.monitor_scale) or 0.5
+local monitor_scale = tonumber(AUX_SETTINGS.monitor_scale) or 0.5
 if monitor_scale <= 0 then
     monitor_scale = 0.5
 end
-local listen_timeout = tonumber(SG_SETTINGS.receive_timeout) or 5
+local listen_timeout = tonumber(AUX_SETTINGS.receive_timeout) or 5
 if listen_timeout < 0 then
     listen_timeout = 0
 end
-local protocol_filter = SG_SETTINGS.protocol
+local protocol_filter = AUX_SETTINGS.protocol
 
 local warned_config_modem = false
-
-local function serialise_value(value)
-    if type(value) == "string" then
-        return value
-    end
-
-    local serialise = textutils.serialise
-    if serialise then
-        local ok, result = pcall(serialise, value, { compact = true, allow_repetitions = true })
-        if ok and type(result) == "string" then
-            return result
-        end
-
-        ok, result = pcall(serialise, value)
-        if ok and type(result) == "string" then
-            return result
-        end
-    end
-
-    return tostring(value)
-end
 
 local function format_energy(value)
     if type(value) ~= "number" then
@@ -106,36 +99,23 @@ local function format_energy(value)
     return string.format("%s" .. fmt .. "%s", sign, magnitude, suffixes[idx])
 end
 
-local function message_to_lines(value)
-    local text = serialise_value(value or "")
-    local lines = {}
-    for line in tostring(text):gmatch("[^\r\n]+") do
-        lines[#lines + 1] = line
-    end
-    if #lines == 0 then
-        lines[1] = ""
-    end
-    return lines
-end
-
 local function open_modem()
     if STATE.modem_side and rednet.isOpen(STATE.modem_side) then
         return STATE.modem_side
     end
 
-    local configured = SG_SETTINGS.modem_side
-    if configured then
-        if peripheral.getType(configured) == "modem" then
-            local ok, err = pcall(rednet.open, configured)
+    if CLIENT_MODEM_SIDE then
+        if peripheral.getType(CLIENT_MODEM_SIDE) == "modem" then
+            local ok, err = pcall(rednet.open, CLIENT_MODEM_SIDE)
             if not ok then
-                print("Failed to open modem on " .. configured .. ": " .. tostring(err))
+                print("Failed to open modem on " .. CLIENT_MODEM_SIDE .. ": " .. tostring(err))
             end
-            if rednet.isOpen(configured) then
-                STATE.modem_side = configured
-                return configured
+            if rednet.isOpen(CLIENT_MODEM_SIDE) then
+                STATE.modem_side = CLIENT_MODEM_SIDE
+                return CLIENT_MODEM_SIDE
             end
         elseif not warned_config_modem then
-            print("Configured modem_side not found: " .. tostring(configured))
+            print("Configured modem side not found: " .. tostring(CLIENT_MODEM_SIDE))
             warned_config_modem = true
         end
     end
@@ -181,24 +161,33 @@ local function render_waiting(modem_side)
 end
 
 local function render_message(modem_side, sender, protocol, payload)
+    if type(payload) ~= "table" or payload.type ~= "energy" then
+        return
+    end
+
+    if LOCAL_SITE then
+        local _, remote_site = SG_UTILS.normalise_name(payload.site)
+        if not remote_site or remote_site ~= LOCAL_SITE then
+            return
+        end
+    end
+
     SG_UTILS.prepare_monitor(monitor_scale, true)
     SG_UTILS.reset_line_offset()
     local energy = nil
     local capacity = nil
     local target = nil
-    if type(payload) == "table" then
-        energy = tonumber(payload.energy or 0)
-        capacity = tonumber(payload.capacity or 0)
-        target = tonumber(payload.target or 0)
-    end
+    energy = tonumber(payload.energy)
+    capacity = tonumber(payload.capacity)
+    target = tonumber(payload.target)
 
-    if energy then
+    if energy ~= nil then
         SG_UTILS.update_line("Energy: " .. (format_energy(energy) or tostring(energy)), 1)
     end
-    if capacity then
+    if capacity ~= nil then
         SG_UTILS.update_line("Capacity: " .. (format_energy(capacity) or tostring(capacity)), 2)
     end
-    if target then
+    if target ~= nil then
         SG_UTILS.update_line("Target: " .. (format_energy(target) or tostring(target)), 3)
     end
 

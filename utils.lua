@@ -28,6 +28,8 @@ U.is_valid_address = address_utils.is_valid_address
 U.format_address = address_utils.format_address
 U.pad_to_width = address_utils.pad_to_width
 U.trim_edge_hyphens = address_utils.trim_edge_hyphens
+U.normalise_name = address_utils.normalise_name
+U.get_site = address_utils.get_site
 
 function U.address_to_string(addr)
     local interface = select(1, peripheral_utils.get_inf_gate())

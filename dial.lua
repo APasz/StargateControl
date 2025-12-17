@@ -49,6 +49,8 @@ local function load_or_create_settings()
 end
 local SG_SETTINGS = load_or_create_settings()
 
+local _, LOCAL_SITE = SG_UTILS.get_site(SG_SETTINGS.site)
+
 local INF_GATE = SG_UTILS.get_inf_gate()
 
 local INF_RS = SG_UTILS.get_inf_rs()
@@ -235,6 +237,7 @@ local function send_energy_update()
     end
 
     data.type = "energy"
+    data.site = LOCAL_SITE
     local ok, err = pcall(rednet.broadcast, data, ENERGY_PROTOCOL)
     if not ok then
         print("Failed to send energy: " .. tostring(err))

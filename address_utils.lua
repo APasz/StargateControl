@@ -12,6 +12,7 @@ local function normalise_name(name)
     end
     return trimmed, string.lower(trimmed)
 end
+AddressUtils.normalise_name = normalise_name
 
 local function after_last_underscore(str)
     if type(str) ~= "string" then
@@ -27,6 +28,7 @@ local function get_site(override)
     end
     return normalise_name(override)
 end
+AddressUtils.get_site = get_site
 
 local function to_set(list)
     local t = {}
