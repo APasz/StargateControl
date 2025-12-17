@@ -1,6 +1,9 @@
 package.path = package.path .. ";disk/?.lua;disk/?/init.lua"
 local SG_UTILS = require("utils")
 
+local energy = peripheral.find("energyDetector")
+local player = peripheral.find("playerDetector")
+
 local SETTINGS_PATH = "settings.lua"
 local DEFAULT_SETTINGS_CONTENT = [[return {
     site = nil,
@@ -58,6 +61,9 @@ local _, LOCAL_SITE = SG_UTILS.get_site(AUX_SETTINGS.site)
 local STATE = {
     modem_side = nil,
     status = nil,
+    current_limit = nil,
+    manual_limit = nil,
+    last_transfer_rate = nil,
 }
 
 local monitor_scale = tonumber(AUX_SETTINGS.monitor_scale) or 0.5
@@ -71,6 +77,29 @@ end
 local protocol_filter = AUX_SETTINGS.protocol
 
 local warned_config_modem = false
+
+local PLAYER_LIMIT = 70000
+local MAX_LIMIT = 999999999
+local MANUAL_STEP = 10000
+local BUTTON_LINE = 6
+local BUTTONS = {
+    { key = "dec", label = "-10k" },
+    { key = "inc", label = "+10k" },
+    { key = "max", label = "max" },
+    { key = "reset", label = "reset" },
+}
+local button_bounds = {}
+
+local TRANSFER_LIMIT_INTERVAL = 15
+local last_limit_update = nil
+
+local function current_time_seconds()
+    if os.epoch then
+        return os.epoch("utc") / 1000
+    end
+
+    return os.clock()
+end
 
 local function format_energy(value)
     if type(value) ~= "number" then
@@ -97,6 +126,131 @@ local function format_energy(value)
     end
 
     return string.format("%s" .. fmt .. "%s", sign, magnitude, suffixes[idx])
+end
+
+local function render_limit_line()
+    local parts = {}
+
+    if STATE.last_transfer_rate then
+        parts[#parts + 1] = "Transfer Rate: " .. (format_energy(STATE.last_transfer_rate) or tostring(STATE.last_transfer_rate))
+    end
+    if STATE.current_limit then
+        parts[#parts + 1] = "Limit: " .. (format_energy(STATE.current_limit) or tostring(STATE.current_limit))
+    end
+
+    SG_UTILS.update_line(table.concat(parts, " | "), 5)
+end
+
+local function set_transfer_limit(limit, opts)
+    local numeric_limit = tonumber(limit)
+    if numeric_limit == nil or not energy or type(energy.setTransferRateLimit) ~= "function" then
+        return
+    end
+
+    local ok, err = pcall(energy.setTransferRateLimit, numeric_limit)
+    if not ok then
+        print("Failed to set transfer rate limit: " .. tostring(err))
+        return
+    end
+
+    STATE.current_limit = numeric_limit
+    last_limit_update = current_time_seconds()
+
+    if opts and opts.manual ~= nil then
+        if opts.manual then
+            STATE.manual_limit = numeric_limit
+        else
+            STATE.manual_limit = nil
+        end
+    end
+
+    render_limit_line()
+end
+
+local function compute_auto_limit()
+    local onlinePlayers = player.getOnlinePlayers() or {}
+
+    if #onlinePlayers > 0 then
+        return PLAYER_LIMIT
+    end
+
+    return MAX_LIMIT
+end
+
+local function apply_auto_limit(force)
+    if STATE.manual_limit and not force then
+        return
+    end
+
+    local now = current_time_seconds()
+    if not force and last_limit_update and (now - last_limit_update) < TRANSFER_LIMIT_INTERVAL then
+        return
+    end
+
+    set_transfer_limit(compute_auto_limit())
+end
+
+local function render_buttons()
+    local labels = {}
+    for _, btn in ipairs(BUTTONS) do
+        labels[#labels + 1] = "[" .. btn.label .. "]"
+    end
+
+    local buttons_text = table.concat(labels, " ")
+    local width = select(1, SG_UTILS.get_monitor_size())
+    if width < #buttons_text then
+        SG_UTILS.update_line("Controls unavailable", BUTTON_LINE)
+        button_bounds = {}
+        return
+    end
+
+    SG_UTILS.update_line(buttons_text, BUTTON_LINE)
+
+    button_bounds = {}
+    local cursor = 1
+    for _, btn in ipairs(BUTTONS) do
+        local label = "[" .. btn.label .. "]"
+        local start_x = cursor
+        local end_x = cursor + #label - 1
+        button_bounds[btn.key] = { start_x = start_x, end_x = end_x }
+        cursor = end_x + 2
+    end
+end
+
+local function reset_limit()
+    STATE.manual_limit = nil
+    apply_auto_limit(true)
+end
+
+local function adjust_manual_limit(delta)
+    local base = STATE.manual_limit or STATE.current_limit or compute_auto_limit()
+    local new_limit = math.max(0, base + delta)
+    set_transfer_limit(new_limit, { manual = true })
+end
+
+local function handle_button_press(action)
+    if action == "dec" then
+        adjust_manual_limit(-MANUAL_STEP)
+    elseif action == "inc" then
+        adjust_manual_limit(MANUAL_STEP)
+    elseif action == "max" then
+        set_transfer_limit(MAX_LIMIT, { manual = true })
+    elseif action == "reset" then
+        reset_limit()
+    end
+end
+
+local function handle_monitor_touch(x, y)
+    if not (x and y) or math.floor(y) ~= BUTTON_LINE then
+        return
+    end
+
+    for action, bounds in pairs(button_bounds) do
+        if x >= bounds.start_x and x <= bounds.end_x then
+            handle_button_press(action)
+            return
+        end
+    end
 end
 
 local function open_modem()
@@ -146,6 +300,8 @@ local function render_no_modem()
     SG_UTILS.prepare_monitor(monitor_scale, true)
     SG_UTILS.reset_line_offset()
     SG_UTILS.update_line("No modem detected", 1)
+    render_limit_line()
+    render_buttons()
     STATE.status = "no_modem"
 end
 
@@ -157,6 +313,8 @@ local function render_waiting(modem_side)
     SG_UTILS.prepare_monitor(monitor_scale, true)
     SG_UTILS.reset_line_offset()
     SG_UTILS.update_line("Waiting for rednet messages", 1)
+    render_limit_line()
+    render_buttons()
     STATE.status = "waiting"
 end
 
@@ -178,10 +336,13 @@ local function render_message(modem_side, sender, protocol, payload)
     local inf_energy = nil
     local inf_capacity = nil
     local inf_target = nil
+    local trans_rate = nil
     sg_energy = tonumber(payload.sg_energy)
     inf_energy = tonumber(payload.inf_energy)
     inf_capacity = tonumber(payload.inf_capacity)
     inf_target = tonumber(payload.inf_target)
+    trans_rate = tonumber(energy.getTransferRate())
+    STATE.last_transfer_rate = trans_rate
 
     if sg_energy ~= nil then
         SG_UTILS.update_line("Stargate Energy: " .. (format_energy(sg_energy) or tostring(sg_energy)), 1)
@@ -195,12 +356,20 @@ local function render_message(modem_side, sender, protocol, payload)
     if inf_target ~= nil then
         SG_UTILS.update_line("Interface Target: " .. (format_energy(inf_target) or tostring(inf_target)), 4)
     end
+    render_limit_line()
+    render_buttons()
 
     STATE.status = "message"
 end
 
-local function main()
+local function maybe_limit()
+    apply_auto_limit()
+end
+
+local function rednet_loop()
     while true do
+        maybe_limit()
+
         local modem_side = open_modem()
         if not modem_side then
             render_no_modem()
@@ -216,6 +385,19 @@ local function main()
             end
         end
     end
+end
+
+local function touch_loop()
+    while true do
+        local ev, _, x, y = os.pullEvent()
+        if ev == "monitor_touch" then
+            handle_monitor_touch(x, y)
+        end
+    end
+end
+
+local function main()
+    parallel.waitForAny(rednet_loop, touch_loop)
 end
 
 main()
