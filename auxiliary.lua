@@ -178,7 +178,8 @@ local function render_message(modem_side, sender, protocol, payload)
     local inf_energy = nil
     local capacity = nil
     local target = nil
-    inf_energy = tonumber(payload.energy)
+    sg_energy = tonumber(payload.sg_energy)
+    inf_energy = tonumber(payload.inf_energy)
     capacity = tonumber(payload.capacity)
     target = tonumber(payload.target)
 
@@ -186,13 +187,13 @@ local function render_message(modem_side, sender, protocol, payload)
         SG_UTILS.update_line("Stargate Energy: " .. (format_energy(sg_energy) or tostring(sg_energy)), 1)
     end
     if inf_energy ~= nil then
-        SG_UTILS.update_line("Interface Energy: " .. (format_energy(inf_energy) or tostring(inf_energy)), 1)
+        SG_UTILS.update_line("Interface Energy: " .. (format_energy(inf_energy) or tostring(inf_energy)), 2)
     end
     if capacity ~= nil then
-        SG_UTILS.update_line("Interface Capacity: " .. (format_energy(capacity) or tostring(capacity)), 2)
+        SG_UTILS.update_line("Interface Capacity: " .. (format_energy(capacity) or tostring(capacity)), 3)
     end
     if target ~= nil then
-        SG_UTILS.update_line("Interface Target: " .. (format_energy(target) or tostring(target)), 3)
+        SG_UTILS.update_line("Interface Target: " .. (format_energy(target) or tostring(target)), 4)
     end
 
     STATE.status = "message"
