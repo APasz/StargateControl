@@ -159,12 +159,20 @@ local function update_toggle_output()
     set_toggle(alarm_active and toggle_enabled)
 end
 
-local function draw_button(mon, label, y)
+local function draw_button(mon, label, y, colour)
     if not mon then
         return nil
     end
     mon.setCursorPos(1, y)
+    local applied_colour = false
+    if colour and mon.isColour and mon.isColour() then
+        mon.setTextColour(colour)
+        applied_colour = true
+    end
     mon.write(label)
+    if applied_colour then
+        SG_UTILS.reset_text_colour()
+    end
     return { x1 = 1, y1 = y, x2 = #label, y2 = y }
 end
 
@@ -255,8 +263,10 @@ local function render_screen()
 
     button_regions.toggle = draw_button(mon, "[TOGGLE SIREN]", 4)
     button_regions.cancel = draw_button(mon, "[CANCEL ALARM]", 5)
-    button_regions.engage_incoming = draw_button(mon, "[ENGAGE INCOM]", 6)
-    button_regions.engage_outgoing = draw_button(mon, "[ENGAGE OUTGO]", 7)
+    local incoming_colour = remote_alarm_sources.manual_incoming and colours.orange or nil
+    local outgoing_colour = remote_alarm_sources.manual_outgoing and colours.orange or nil
+    button_regions.engage_incoming = draw_button(mon, "[ENGAGE INCOM]", 6, incoming_colour)
+    button_regions.engage_outgoing = draw_button(mon, "[ENGAGE OUTGO]", 7, outgoing_colour)
 end
 
 local function start_alarm()
@@ -351,6 +361,22 @@ local function toggle_manual_alarm(kind)
     update_remote_alarm_source(key, not remote_alarm_sources[key])
 end
 
+local function reset_manual_engaged()
+    local changed = false
+    if remote_alarm_sources.manual_incoming then
+        remote_alarm_sources.manual_incoming = false
+        changed = true
+    end
+    if remote_alarm_sources.manual_outgoing then
+        remote_alarm_sources.manual_outgoing = false
+        changed = true
+    end
+    if changed then
+        recompute_remote_alarm_active()
+        refresh_input_state(nil, true)
+    end
+end
+
 local function advance_phase()
     if not alarm_active then
         return
@@ -424,6 +450,7 @@ end
 local function handle_monitor_touch(_, x, y)
     if in_region(button_regions.cancel, x, y) then
         manual_cancelled = true
+        reset_manual_engaged()
         stop_alarm()
     elseif in_region(button_regions.toggle, x, y) then
         toggle_enabled = not toggle_enabled
