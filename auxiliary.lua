@@ -81,7 +81,9 @@ local warned_config_modem = false
 local PLAYER_LIMIT = 70000
 local MAX_LIMIT = 999999999
 local MANUAL_STEP = 10000
+local TRANSFER_LINE = 5
 local BUTTON_LINE = 6
+local LIMIT_LINE = 7
 local BUTTONS = {
     { key = "dec", label = "-10k" },
     { key = "inc", label = "+10k" },
@@ -128,17 +130,23 @@ local function format_energy(value)
     return string.format("%s" .. fmt .. "%s", sign, magnitude, suffixes[idx])
 end
 
-local function render_limit_line()
-    local parts = {}
-
+local function render_status_lines()
+    local rate_text = "Transfer Rate: "
     if STATE.last_transfer_rate then
-        parts[#parts + 1] = "Transfer Rate: " .. (format_energy(STATE.last_transfer_rate) or tostring(STATE.last_transfer_rate))
-    end
-    if STATE.current_limit then
-        parts[#parts + 1] = "Limit: " .. (format_energy(STATE.current_limit) or tostring(STATE.current_limit))
+        rate_text = rate_text .. (format_energy(STATE.last_transfer_rate) or tostring(STATE.last_transfer_rate))
+    else
+        rate_text = rate_text .. "N/A"
     end
 
-    SG_UTILS.update_line(table.concat(parts, " | "), 5)
+    local limit_text = "Limit: "
+    if STATE.current_limit then
+        limit_text = limit_text .. (format_energy(STATE.current_limit) or tostring(STATE.current_limit))
+    else
+        limit_text = limit_text .. "N/A"
+    end
+
+    SG_UTILS.update_line(rate_text, TRANSFER_LINE)
+    SG_UTILS.update_line(limit_text, LIMIT_LINE)
 end
 
 local function set_transfer_limit(limit, opts)
@@ -164,7 +172,7 @@ local function set_transfer_limit(limit, opts)
         end
     end
 
-    render_limit_line()
+    render_status_lines()
 end
 
 local function compute_auto_limit()
@@ -300,7 +308,7 @@ local function render_no_modem()
     SG_UTILS.prepare_monitor(monitor_scale, true)
     SG_UTILS.reset_line_offset()
     SG_UTILS.update_line("No modem detected", 1)
-    render_limit_line()
+    render_status_lines()
     render_buttons()
     STATE.status = "no_modem"
 end
@@ -313,7 +321,7 @@ local function render_waiting(modem_side)
     SG_UTILS.prepare_monitor(monitor_scale, true)
     SG_UTILS.reset_line_offset()
     SG_UTILS.update_line("Waiting for rednet messages", 1)
-    render_limit_line()
+    render_status_lines()
     render_buttons()
     STATE.status = "waiting"
 end
@@ -356,7 +364,7 @@ local function render_message(modem_side, sender, protocol, payload)
     if inf_target ~= nil then
         SG_UTILS.update_line("Interface Target: " .. (format_energy(inf_target) or tostring(inf_target)), 4)
     end
-    render_limit_line()
+    render_status_lines()
     render_buttons()
 
     STATE.status = "message"
