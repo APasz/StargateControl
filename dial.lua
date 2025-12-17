@@ -174,10 +174,10 @@ local function get_gate_energy()
         return nil
     end
     return {
-        inf_energy = INF_GATE.getEnergy(),
-        capacity = INF_GATE.getEnergyCapacity(),
-        target = INF_GATE.getEnergyTarget(),
         sg_energy = INF_GATE.getStargateEnergy(),
+        inf_energy = INF_GATE.getEnergy(),
+        inf_capacity = INF_GATE.getEnergyCapacity(),
+        inf_target = INF_GATE.getEnergyTarget(),
     }
 end
 
