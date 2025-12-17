@@ -1113,8 +1113,7 @@ end
 
 local function stargate_chevron_engaged(p2, count, engaged, incoming, symbol)
     if incoming then
-        STATE.outbound = false
-        if STATE.outbound ~= true then
+        if STATE.outbound ~= true then            
             send_alarm_update(true)
         end
         local rs = SG_UTILS.get_inf_rs()
