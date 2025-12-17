@@ -857,20 +857,22 @@ local function run_timer_task(name, now)
     end
 
     if name == "incoming" then
-        if STATE.outbound == false and is_wormhole_active() then
-            local seconds = get_open_seconds()
-            if seconds then
-                seconds = math.max(seconds, 0)
-                if seconds ~= STATE.incoming_seconds then
-                    STATE.incoming_seconds = seconds
+        if STATE.outbound == false then
+            if is_wormhole_active() then
+                local seconds = get_open_seconds()
+                if seconds then
+                    seconds = math.max(seconds, 0)
+                    if seconds ~= STATE.incoming_seconds then
+                        STATE.incoming_seconds = seconds
+                        update_incoming_counter_line()
+                    end
+                else
+                    STATE.incoming_seconds = (STATE.incoming_seconds or 0) + 1
                     update_incoming_counter_line()
                 end
-            else
-                STATE.incoming_seconds = (STATE.incoming_seconds or 0) + 1
-                update_incoming_counter_line()
+                send_alarm_update(true, true)
+                send_env_status_message()
             end
-            send_alarm_update(true, true)
-            send_env_status_message()
             start_timer("incoming", 1)
         end
         return
@@ -893,11 +895,16 @@ local function run_timer_task(name, now)
 end
 
 local function process_scheduled_timers(now)
+    local due_list = {}
     for name, due in pairs(TIMER_SCHEDULE) do
         if due and due <= now then
-            TIMER_SCHEDULE[name] = nil
-            run_timer_task(name, now)
+            due_list[#due_list + 1] = name
         end
+    end
+
+    for _, name in ipairs(due_list) do
+        TIMER_SCHEDULE[name] = nil
+        run_timer_task(name, now)
     end
 end
 
@@ -1115,6 +1122,7 @@ end
 local function stargate_incoming_wormhole(p2, address)
     show_incoming_banner()
     STATE.outbound = false
+    STATE.connected = true
     STATE.gate = nil
     STATE.gate_id = "Incoming"
     STATE.disconnected_early = false
