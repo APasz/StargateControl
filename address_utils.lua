@@ -81,6 +81,9 @@ local function allowed_destinations(all, site)
         local _, gate_site = normalise_name(g.site)
         if gate_site == site then
             local allowed = to_set(g.only_to)
+            if allowed["*"] then
+                return nil
+            end
             if next(allowed) then
                 return allowed
             end

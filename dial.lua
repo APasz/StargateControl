@@ -15,6 +15,8 @@ local DEFAULT_SETTINGS_CONTENT = [[return {
     -- side to detect redstone signal if the local environment is safe (set to true to force always-safe)
     timeout = 60,
     -- time until wormhole is autoclosed
+    reset_on_gate_reset = true,
+    -- when true, clear local state and UI on stargate_reset events
     dialing_colour = "green",
     -- colour to use during dialing progress
     energy_modem_side = nil,
@@ -1110,7 +1112,7 @@ end
 
 local function stargate_chevron_engaged(p2, count, engaged, incoming, symbol)
     if incoming then
-        if STATE.outbound ~= true then            
+        if STATE.outbound ~= true then
             send_alarm_update(true)
         end
         local rs = SG_UTILS.get_inf_rs()
@@ -1156,6 +1158,15 @@ end
 local function stargate_reset(p2, feedback_num, feedback_desc)
     send_alarm_update(false)
     SG_UTILS.reset_outputs(SG_UTILS.get_inf_rs())
+    if SG_SETTINGS.reset_on_gate_reset then
+        reset_timer()
+        STATE.connected = false
+        STATE.outbound = nil
+        STATE.gate = nil
+        STATE.gate_id = nil
+        STATE.disconnected_early = false
+        show_disconnected_screen()
+    end
 end
 
 local function stargate_deconstructing_entity(p2, enity_type, entity_name, uuid, went_wrong_way) end

@@ -16,7 +16,7 @@ local function wait_for_fast_engage(interface, symbol, expected_chevron, cancel_
 
     for _ = 1, 60, 1 do
         if is_cancelled(cancel_check) then
-            return false
+            return false, "cancelled"
         end
 
         local current_ok = has_current and interface.isCurrentSymbol(symbol)
@@ -33,7 +33,7 @@ local function wait_for_fast_engage(interface, symbol, expected_chevron, cancel_
         sleep(0.05)
     end
 
-    return true
+    return false, "timeout"
 end
 
 function DialingUtils.dial_fast(gate, cancel_check, progress_cb)
@@ -58,8 +58,15 @@ function DialingUtils.dial_fast(gate, cancel_check, progress_cb)
 
         interface.engageSymbol(symbol)
         monitor_utils.update_line("Encoded: " .. symbol, 2)
-        local engaged = wait_for_fast_engage(interface, symbol, chevron, cancel_check)
-        if not engaged or is_cancelled(cancel_check) then
+        local engaged, engage_reason = wait_for_fast_engage(interface, symbol, chevron, cancel_check)
+        if not engaged then
+            peripheral_utils.reset_stargate()
+            if engage_reason == "cancelled" or is_cancelled(cancel_check) then
+                return false, "cancelled"
+            end
+            return false, "failed"
+        end
+        if is_cancelled(cancel_check) then
             peripheral_utils.reset_stargate()
             return false, "cancelled"
         end
