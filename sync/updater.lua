@@ -10,6 +10,9 @@ local DEFAULT_TARGET_DIR = "disk"
 local FILE_LIST_PATH = "sync/file_list.lua"
 local UPDATER_PATH = "sync/updater.lua"
 
+local args = { ... }
+local self_only = args[1] == "self" or args[1] == "manifest"
+
 local function download(url, headers)
     local res, err = http.get(url, headers)
     if not res then
@@ -158,14 +161,19 @@ local function download_files(files)
     return ok
 end
 
-local file_list = load_file_list()
 local commit_name, commit_err = fetch_latest_commit_name()
 
-local files = collect_files(file_list)
-validate_target_dirs(files)
-
-local success = download_file(FILE_LIST_PATH, nil, DEFAULT_TARGET_DIR)
-success = download_files(files) and success
+local success = true
+if self_only then
+    validate_target_dirs({})
+    success = download_file(FILE_LIST_PATH, nil, DEFAULT_TARGET_DIR) and success
+else
+    local file_list = load_file_list()
+    local files = collect_files(file_list)
+    validate_target_dirs(files)
+    success = download_file(FILE_LIST_PATH, nil, DEFAULT_TARGET_DIR) and success
+    success = download_files(files) and success
+end
 
 success = download_file(UPDATER_PATH, "updater.lua") and success
 

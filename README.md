@@ -16,7 +16,7 @@ CC:Tweaked/ComputerCraft scripts for driving a Stargate from a monitor UI, raisi
 - `alarm_settings.lua` — template for the alarm `settings.lua`.
 - `reactor.lua` — monitor UI for Extreme Reactors + Mekanism induction matrix stats.
 - `reactor_settings.lua` — template for the reactor monitor `settings.lua`.
-- `sync/file_list.lua` — manifest of files shared over rednet, grouped by scope (`shared`, `dialing`, `alarming`, `server`).
+- `sync/file_list.lua` — manifest of files shared over rednet, grouped by scope (`manifest`, `shared`, `dialing`, `alarming`, `server`).
 - `sync/server.lua` — rednet file host; serves files out of `disk/` using `file_list.lua`.
 - `sync/client.lua` — rednet fetcher; keeps machines updated and can auto-run the primary program.
 - `sync/client_config.lua` — modem side + primary program name/scope for `client.lua`.
@@ -29,7 +29,7 @@ CC:Tweaked/ComputerCraft scripts for driving a Stargate from a monitor UI, raisi
 - Wireless/ender modems for rednet sync + alarm/energy broadcasts; HTTP enabled if you use `updater.lua`.
 
 ## Install / Update
-- Manual copy works fine, or fetch `sync/updater.lua` (save/run as `updater`) on the computer that has a `disk/` directory; it pulls everything listed in `sync/file_list.lua` into `disk/` and refreshes `updater.lua`.
+- Manual copy works fine, or fetch `sync/updater.lua` (save/run as `updater`) on the computer that has a `disk/` directory; it pulls everything listed in `sync/file_list.lua` into `disk/` and refreshes `updater.lua`. Use `updater self` to update only `updater.lua` + `file_list.lua`.
 - To distribute over rednet, keep that `disk/` mounted on a host computer, run `sync/server.lua`, and let other machines pull via `sync/client.lua` (see File Sync below).
 
 ## Configure
@@ -118,7 +118,7 @@ Run `client setup` to create/refresh this file; pass a second arg to set `primar
 - Runs on a monitor if present; otherwise updates the terminal.
 
 ## File Sync (optional)
-- `sync/file_list.lua`: defines scopes (`shared`, `dialing`, `alarming`, `server`) and the files each scope provides; edit to add your own files.
+- `sync/file_list.lua`: defines scopes (`manifest`, `shared`, `dialing`, `alarming`, `server`) and the files each scope provides; edit to add your own files.
 - `sync/server.lua`: open a modem, host `files_request` as `SGServer`, and serve files from `disk/<path-from-file_list>`.
 - `sync/client.lua`: looks up `SGServer`, downloads the configured files, writes them atomically, and runs `primary_file` (default `dial`). Use `client setup` the first time to pull required files (`settings.lua`, `addresses.lua`, etc.), optionally with a second arg to set the primary program (`client setup alarm`); later runs can just call `client` to refresh and launch. `client_config.scope` can force a specific scope if needed.
 

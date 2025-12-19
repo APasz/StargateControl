@@ -1,4 +1,7 @@
 return {
+    manifest = {
+        { filename = "file_list.lua", git = "sync/file_list.lua", override=true },
+    },
     dialing = {
         { filename = "dial.lua", git = "dial.lua", override=true },
         { filename = "settings.lua", git = "dial_settings.lua", override=false },
@@ -20,7 +23,6 @@ return {
         { filename = "updater.lua", git = "sync/updater.lua", override=true },
     },
     shared = {
-        { filename = "file_list.lua", git = "sync/file_list.lua", override=true },
         { filename = "utils.lua", git = "utils.lua", override=true, disk = "disk2" },
         { filename = "address_utils.lua", git = "address_utils.lua", override=true, disk = "disk2" },
         { filename = "monitor_utils.lua", git = "monitor_utils.lua", override=true, disk = "disk2" },

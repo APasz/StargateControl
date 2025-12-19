@@ -3,6 +3,7 @@ local DEFAULT_CONFIG_CONTENT = 'return { side = "back", primary_file = "dial" }\
 local REQUEST_PROTOCOL = "files_request"
 local REPLY_PROTOCOL = "files_reply"
 local SERVER_NAME = "SGServer"
+local MANIFEST_SCOPE = "manifest"
 local FILE_LIST_NAME = "file_list.lua"
 local SCOPE_ALIASES = { dial = "dialing", alarm = "alarming", server = "server", aux = "auxiliary" }
 
@@ -221,7 +222,10 @@ if not server_id then
     return run_primary()
 end
 
-local ok_manifest, manifest_file = pcall(fetch_file, { scope = "shared", filename = FILE_LIST_NAME }, server_id)
+local ok_manifest, manifest_file = pcall(fetch_file, { scope = MANIFEST_SCOPE, filename = FILE_LIST_NAME }, server_id)
+if not ok_manifest then
+    ok_manifest, manifest_file = pcall(fetch_file, { scope = "shared", filename = FILE_LIST_NAME }, server_id)
+end
 if not ok_manifest then
     print("Failed to fetch manifest; running cached files: " .. tostring(manifest_file))
     return run_primary()

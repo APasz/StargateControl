@@ -5,6 +5,8 @@ rednet.open("left")
 local REQUEST_PROTOCOL = "files_request"
 local REPLY_PROTOCOL = "files_reply"
 local SERVER_NAME = "SGServer"
+local MANIFEST_SCOPE = "manifest"
+local FILE_LIST_NAME = "file_list.lua"
 local DEFAULT_BASE_DIR = "disk"
 local FILE_LIST = require("file_list")
 
@@ -32,7 +34,7 @@ local function build_file_map(list)
     for scope, files in pairs(list) do
         local map = {}
         for _, file in ipairs(files) do
-            local base_dir = file.disk or DEFAULT_BASE_DIR
+            local base_dir = file.git == "sync/file_list.lua" and DEFAULT_BASE_DIR or (file.disk or DEFAULT_BASE_DIR)
             map[file.filename] = {
                 src = fs.combine(base_dir, file.git),
                 dst = file.filename,
@@ -64,6 +66,10 @@ while true do
 
     local scoped_files = scope and FILES[scope]
     local file = scoped_files and filename and scoped_files[filename]
+    if not file and scope == "shared" and filename == FILE_LIST_NAME then
+        local manifest_files = FILES[MANIFEST_SCOPE]
+        file = manifest_files and manifest_files[FILE_LIST_NAME]
+    end
 
     if not scope or not filename then
         rednet.send(id, { error = "Invalid file request" }, REPLY_PROTOCOL)
