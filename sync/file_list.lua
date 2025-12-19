@@ -11,6 +11,10 @@ return {
         { filename = "auxiliary.lua", git = "auxiliary.lua", override=true },
         { filename = "settings.lua", git = "auxiliary_settings.lua", override=false },
     },
+    reactor = {
+        { filename = "reactor.lua", git = "reactor.lua", override=true },
+        { filename = "settings.lua", git = "reactor_settings.lua", override=false },
+    },
     server = {
         { filename = "server.lua", git = "sync/server.lua", override=true },
         { filename = "updater.lua", git = "sync/updater.lua", override=true },

@@ -14,6 +14,8 @@ CC:Tweaked/ComputerCraft scripts for driving a Stargate from a monitor UI, raisi
 - `dialing_utils.lua` — fast/slow dialing routines.
 - `alarm.lua` — siren/indicator UI driven by rednet alarm broadcasts (with optional redstone input fallback) plus buttons to silence or toggle outputs.
 - `alarm_settings.lua` — template for the alarm `settings.lua`.
+- `reactor.lua` — monitor UI for Extreme Reactors + Mekanism induction matrix stats.
+- `reactor_settings.lua` — template for the reactor monitor `settings.lua`.
 - `sync/file_list.lua` — manifest of files shared over rednet, grouped by scope (`shared`, `dialing`, `alarming`, `server`).
 - `sync/server.lua` — rednet file host; serves files out of `disk/` using `file_list.lua`.
 - `sync/client.lua` — rednet fetcher; keeps machines updated and can auto-run the primary program.
@@ -73,6 +75,17 @@ return {
 }
 ```
 
+### Reactor monitor settings (`settings.lua` / `reactor_settings.lua`)
+`reactor.lua` creates `settings.lua` beside itself if missing; `reactor_settings.lua` is the default template:
+```lua
+return {
+    monitor_scale = 0.5,   -- monitor text scale
+    refresh_interval = 1,  -- seconds between updates
+    reactor_name = nil,    -- optional peripheral name; nil auto-detects
+    induction_name = nil,  -- optional induction port name; nil auto-detects
+}
+```
+
 ### Client config (`client_config.lua`)
 Created on first run of `client.lua`:
 ```lua
@@ -98,6 +111,11 @@ Run `client setup` to create/refresh this file; pass a second arg to set `primar
 - Listens for rednet alarm broadcasts on `alarm_protocol` (modem from `modem_side`, `client_config.side`, or the first available) and can also react to `side_input` redstone if set.
 - Outputs: `side_toggle` (default `front`) for the siren plus cycling lights on `phase_sides` (`left`, `top`, `right`).
 - On-screen buttons: `[ TOGGLE SIREN ]` toggles the siren output; `[ CANCEL ALARM ]` silences while the input stays high.
+
+## Reactor Monitor (`reactor.lua`)
+- Auto-detects an Extreme Reactors/Bigger Reactors controller and a Mekanism induction port (or use names in `settings.lua`).
+- Shows reactor state, energy, output, fuel level, fuel use/reactivity, temperatures, and matrix energy/input/output.
+- Runs on a monitor if present; otherwise updates the terminal.
 
 ## File Sync (optional)
 - `sync/file_list.lua`: defines scopes (`shared`, `dialing`, `alarming`, `server`) and the files each scope provides; edit to add your own files.
