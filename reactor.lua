@@ -179,6 +179,35 @@ local function format_temp(value)
     return string.format("%.0fC", numeric)
 end
 
+local function build_bar_line(label, value, max_value, width)
+    local safe_width = width or 32
+    local prefix = label .. " "
+    local available = safe_width - #prefix - 2
+
+    if available < 3 then
+        return prefix .. "N/A"
+    end
+
+    local numeric_value = tonumber(value)
+    local numeric_max = tonumber(max_value)
+    local bar
+
+    if numeric_value == nil or numeric_max == nil or numeric_max <= 0 then
+        bar = string.rep("-", available)
+    else
+        local ratio = numeric_value / numeric_max
+        if ratio < 0 then
+            ratio = 0
+        elseif ratio > 1 then
+            ratio = 1
+        end
+        local filled = math.floor(ratio * available + 0.5)
+        bar = string.rep("=", filled) .. string.rep("-", available - filled)
+    end
+
+    return prefix .. "[" .. bar .. "]"
+end
+
 local function resolve_display()
     local mon = peripheral.find("monitor")
     if mon then
@@ -315,18 +344,12 @@ local function read_induction_stats(induction)
     }
 end
 
-local function label_with_name(label, name)
-    if name and name ~= "" then
-        return label .. " (" .. name .. ")"
-    end
-    return label
-end
-
-local function build_lines(reactor_stats, induction_stats)
+local function build_lines(reactor_stats, induction_stats, width)
     local lines = {}
+    local safe_width = width or 32
 
     if not reactor_stats then
-        lines[#lines + 1] = { text = label_with_name("Reactor: Missing", STATE.reactor_name), colour = colours.red }
+        lines[#lines + 1] = { text = "Reactor: Missing", colour = colours.red }
     else
         local status = "UNKNOWN"
         local colour = colours.yellow
@@ -338,7 +361,7 @@ local function build_lines(reactor_stats, induction_stats)
             colour = colours.red
         end
 
-        lines[#lines + 1] = { text = label_with_name("Reactor: " .. status, STATE.reactor_name), colour = colour }
+        lines[#lines + 1] = { text = "Reactor: " .. status, colour = colour }
         lines[#lines + 1] = { text = "Energy: " .. format_amount(reactor_stats.energy, reactor_stats.energy_capacity, "RF") }
         if reactor_stats.output ~= nil then
             lines[#lines + 1] = { text = "Output: " .. format_rate(reactor_stats.output, "RF/t") }
@@ -346,6 +369,7 @@ local function build_lines(reactor_stats, induction_stats)
             lines[#lines + 1] = { text = "Output: N/A" }
         end
         lines[#lines + 1] = { text = "Fuel: " .. format_amount(reactor_stats.fuel, reactor_stats.fuel_max, "mB") }
+        lines[#lines + 1] = { text = build_bar_line("Fuel Fill", reactor_stats.fuel, reactor_stats.fuel_max, safe_width) }
 
         local details = {}
         if reactor_stats.fuel_used ~= nil then
@@ -378,10 +402,11 @@ local function build_lines(reactor_stats, induction_stats)
     lines[#lines + 1] = { text = "" }
 
     if not induction_stats then
-        lines[#lines + 1] = { text = label_with_name("Matrix: Missing", STATE.induction_name), colour = colours.red }
+        lines[#lines + 1] = { text = "Matrix: Missing", colour = colours.red }
     else
-        lines[#lines + 1] = { text = label_with_name("Matrix: OK", STATE.induction_name), colour = colours.green }
+        lines[#lines + 1] = { text = "Matrix: OK", colour = colours.green }
         lines[#lines + 1] = { text = "Energy: " .. format_amount(induction_stats.energy, induction_stats.energy_capacity, "RF") }
+        lines[#lines + 1] = { text = build_bar_line("Matrix Fill", induction_stats.energy, induction_stats.energy_capacity, safe_width) }
 
         local flow_parts = {}
         if induction_stats.input ~= nil then
@@ -451,8 +476,9 @@ end
 
 while true do
     refresh_peripherals()
+    update_display_state()
     local reactor_stats = read_reactor_stats(STATE.reactor)
     local induction_stats = read_induction_stats(STATE.induction)
-    render_lines(build_lines(reactor_stats, induction_stats))
+    render_lines(build_lines(reactor_stats, induction_stats, STATE.display_width))
     sleep(refresh_interval)
 end
