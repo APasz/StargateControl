@@ -245,7 +245,7 @@ local function build_bar_line(label, value, max_value, width, use_colour)
     local line_text = prefix .. bar_text
 
     local segments = {
-        { text = prefix .. "[", colour = colours.white, bg = colours.black },
+        { text = prefix, colour = colours.white, bg = colours.black },
     }
 
     local current_colour = nil
@@ -271,7 +271,7 @@ local function build_bar_line(label, value, max_value, width, use_colour)
     if buffer ~= "" then
         segments[#segments + 1] = { text = buffer, colour = current_colour, bg = current_bg }
     end
-    segments[#segments + 1] = { text = "]", colour = colours.white, bg = colours.black }
+    segments[#segments + 1] = { text = "", colour = colours.white, bg = colours.black }
 
     return { text = line_text, segments = segments }
 end
