@@ -41,15 +41,19 @@ end
 
 local SETTINGS = load_or_create_settings()
 
-local monitor_scale = tonumber(SETTINGS.monitor_scale) or 0.5
-if monitor_scale <= 0 then
-    monitor_scale = 0.5
+local DEFAULT_MONITOR_SCALE = 1
+local DEFAULT_REFRESH_INTERVAL = 1
+
+local function read_positive_number(value, fallback)
+    local numeric = tonumber(value)
+    if not numeric or numeric <= 0 then
+        return fallback
+    end
+    return numeric
 end
 
-local refresh_interval = tonumber(SETTINGS.refresh_interval) or 1
-if refresh_interval <= 0 then
-    refresh_interval = 1
-end
+local monitor_scale = read_positive_number(SETTINGS.monitor_scale, DEFAULT_MONITOR_SCALE)
+local refresh_interval = read_positive_number(SETTINGS.refresh_interval, DEFAULT_REFRESH_INTERVAL)
 
 local REACTOR_TYPES = {
     "BigReactors-Reactor",
@@ -271,7 +275,6 @@ local function build_bar_line(label, value, max_value, width, use_colour)
     if buffer ~= "" then
         segments[#segments + 1] = { text = buffer, colour = current_colour, bg = current_bg }
     end
-    segments[#segments + 1] = { text = "", colour = colours.white, bg = colours.black }
 
     return { text = line_text, segments = segments }
 end
@@ -283,6 +286,16 @@ local function resolve_display()
     end
 
     return term, false, "term"
+end
+
+local function supports_colour(display)
+    if display and display.isColour then
+        return display.isColour()
+    end
+    if display and display.isColor then
+        return display.isColor()
+    end
+    return false
 end
 
 local function update_display_state()
@@ -316,9 +329,20 @@ local function update_display_state()
 
     STATE.display_width = width or STATE.display_width or 32
     STATE.display_height = height or STATE.display_height or 15
-    STATE.display_colour = display and ((display.isColour and display.isColour()) or (display.isColor and display.isColor())) or false
+    STATE.display_colour = supports_colour(display)
 
     return display
+end
+
+local function set_text_colour(display, colour)
+    if not display or not colour then
+        return
+    end
+    if display.setTextColour then
+        display.setTextColour(colour)
+    elseif display.setTextColor then
+        display.setTextColor(colour)
+    end
 end
 
 local function set_background(display, colour)
@@ -342,46 +366,33 @@ local function find_first_type(type_list)
     return nil, nil
 end
 
-local function refresh_peripherals()
-    if SETTINGS.reactor_name then
-        if not (STATE.reactor and STATE.reactor_name == SETTINGS.reactor_name and peripheral.isPresent(SETTINGS.reactor_name)) then
-            if peripheral.isPresent(SETTINGS.reactor_name) then
-                STATE.reactor = peripheral.wrap(SETTINGS.reactor_name)
-                STATE.reactor_name = SETTINGS.reactor_name
-            else
-                STATE.reactor = nil
-                STATE.reactor_name = SETTINGS.reactor_name
+local function resolve_peripheral(desired_name, current, current_name, type_list)
+    if desired_name then
+        local present = peripheral.isPresent(desired_name)
+        if not current or current_name ~= desired_name or not present then
+            if present then
+                return peripheral.wrap(desired_name), desired_name
             end
+            return nil, desired_name
         end
-    else
-        if STATE.reactor_name and not peripheral.isPresent(STATE.reactor_name) then
-            STATE.reactor = nil
-            STATE.reactor_name = nil
-        end
-        if not STATE.reactor then
-            STATE.reactor, STATE.reactor_name = find_first_type(REACTOR_TYPES)
-        end
+        return current, current_name
     end
 
-    if SETTINGS.induction_name then
-        if not (STATE.induction and STATE.induction_name == SETTINGS.induction_name and peripheral.isPresent(SETTINGS.induction_name)) then
-            if peripheral.isPresent(SETTINGS.induction_name) then
-                STATE.induction = peripheral.wrap(SETTINGS.induction_name)
-                STATE.induction_name = SETTINGS.induction_name
-            else
-                STATE.induction = nil
-                STATE.induction_name = SETTINGS.induction_name
-            end
-        end
-    else
-        if STATE.induction_name and not peripheral.isPresent(STATE.induction_name) then
-            STATE.induction = nil
-            STATE.induction_name = nil
-        end
-        if not STATE.induction then
-            STATE.induction, STATE.induction_name = find_first_type(INDUCTION_TYPES)
-        end
+    if current_name and not peripheral.isPresent(current_name) then
+        current = nil
+        current_name = nil
     end
+
+    if not current then
+        current, current_name = find_first_type(type_list)
+    end
+
+    return current, current_name
+end
+
+local function refresh_peripherals()
+    STATE.reactor, STATE.reactor_name = resolve_peripheral(SETTINGS.reactor_name, STATE.reactor, STATE.reactor_name, REACTOR_TYPES)
+    STATE.induction, STATE.induction_name = resolve_peripheral(SETTINGS.induction_name, STATE.induction, STATE.induction_name, INDUCTION_TYPES)
 end
 
 local function read_reactor_stats(reactor)
@@ -506,8 +517,7 @@ local function build_lines(reactor_stats, induction_stats, width, use_colour)
     return lines
 end
 
-local function render_lines(lines)
-    local display = update_display_state()
+local function render_lines(display, lines)
     if not display then
         return
     end
@@ -518,7 +528,7 @@ local function render_lines(lines)
 
     for i = 1, max_lines do
         local line = lines[i] or {}
-        if line.segments and STATE.display_colour and display.setTextColour then
+        if line.segments and STATE.display_colour then
             if display.setCursorPos then
                 display.setCursorPos(1, i)
             end
@@ -536,9 +546,7 @@ local function render_lines(lines)
                 if #text > remaining then
                     text = string.sub(text, 1, remaining)
                 end
-                if segment.colour and display.setTextColour then
-                    display.setTextColour(segment.colour)
-                end
+                set_text_colour(display, segment.colour)
                 set_background(display, segment.bg or colours.black)
                 if display.write then
                     display.write(text)
@@ -547,7 +555,7 @@ local function render_lines(lines)
             end
 
             set_background(display, colours.black)
-            display.setTextColour(colours.white)
+            set_text_colour(display, colours.white)
         else
             local text = line.text or ""
             if #text > width then
@@ -560,14 +568,14 @@ local function render_lines(lines)
             if display.clearLine then
                 display.clearLine()
             end
-            if STATE.display_colour and line.colour and display.setTextColour then
-                display.setTextColour(line.colour)
+            if STATE.display_colour and line.colour then
+                set_text_colour(display, line.colour)
             end
             if display.write then
                 display.write(text)
             end
-            if STATE.display_colour and line.colour and display.setTextColour then
-                display.setTextColour(colours.white)
+            if STATE.display_colour and line.colour then
+                set_text_colour(display, colours.white)
             end
         end
     end
@@ -587,9 +595,9 @@ end
 
 while true do
     refresh_peripherals()
-    update_display_state()
+    local display = update_display_state()
     local reactor_stats = read_reactor_stats(STATE.reactor)
     local induction_stats = read_induction_stats(STATE.induction)
-    render_lines(build_lines(reactor_stats, induction_stats, STATE.display_width, STATE.display_colour))
+    render_lines(display, build_lines(reactor_stats, induction_stats, STATE.display_width, STATE.display_colour))
     sleep(refresh_interval)
 end
