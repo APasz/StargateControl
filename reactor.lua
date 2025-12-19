@@ -185,27 +185,79 @@ local function build_bar_line(label, value, max_value, width)
     local available = safe_width - #prefix - 2
 
     if available < 3 then
-        return prefix .. "N/A"
+        return { text = prefix .. "N/A" }
     end
 
     local numeric_value = tonumber(value)
     local numeric_max = tonumber(max_value)
-    local bar
+    local ratio = nil
+    local percent_text = "N/A"
 
-    if numeric_value == nil or numeric_max == nil or numeric_max <= 0 then
-        bar = string.rep("-", available)
-    else
-        local ratio = numeric_value / numeric_max
+    if numeric_value ~= nil and numeric_max ~= nil and numeric_max > 0 then
+        ratio = numeric_value / numeric_max
         if ratio < 0 then
             ratio = 0
         elseif ratio > 1 then
             ratio = 1
         end
-        local filled = math.floor(ratio * available + 0.5)
-        bar = string.rep("=", filled) .. string.rep("-", available - filled)
+        percent_text = string.format("%d%%", math.floor(ratio * 100 + 0.5))
     end
 
-    return prefix .. "[" .. bar .. "]"
+    if #percent_text > available then
+        percent_text = string.sub(percent_text, 1, available)
+    end
+
+    local filled = 0
+    if ratio ~= nil then
+        filled = math.floor(ratio * available + 0.5)
+    end
+
+    local bar_chars = {}
+    local bar_colours = {}
+    for i = 1, available do
+        local is_filled = ratio ~= nil and i <= filled
+        bar_chars[i] = is_filled and "=" or "-"
+        bar_colours[i] = is_filled and colours.lime or colours.gray
+    end
+
+    local start_idx = math.floor((available - #percent_text) / 2) + 1
+    for i = 1, #percent_text do
+        local idx = start_idx + i - 1
+        if idx >= 1 and idx <= available then
+            bar_chars[idx] = string.sub(percent_text, i, i)
+            bar_colours[idx] = colours.white
+        end
+    end
+
+    local bar_text = table.concat(bar_chars)
+    local line_text = prefix .. "[" .. bar_text .. "]"
+
+    local segments = {
+        { text = prefix .. "[", colour = colours.white },
+    }
+
+    local current_colour = nil
+    local buffer = ""
+    for i = 1, available do
+        local colour = bar_colours[i] or colours.white
+        local char = bar_chars[i] or ""
+        if current_colour == nil then
+            current_colour = colour
+            buffer = char
+        elseif colour == current_colour then
+            buffer = buffer .. char
+        else
+            segments[#segments + 1] = { text = buffer, colour = current_colour }
+            current_colour = colour
+            buffer = char
+        end
+    end
+    if buffer ~= "" then
+        segments[#segments + 1] = { text = buffer, colour = current_colour }
+    end
+    segments[#segments + 1] = { text = "]", colour = colours.white }
+
+    return { text = line_text, segments = segments }
 end
 
 local function resolve_display()
@@ -369,7 +421,7 @@ local function build_lines(reactor_stats, induction_stats, width)
             lines[#lines + 1] = { text = "Output: N/A" }
         end
         lines[#lines + 1] = { text = "Fuel: " .. format_amount(reactor_stats.fuel, reactor_stats.fuel_max, "mB") }
-        lines[#lines + 1] = { text = build_bar_line("Fuel Fill", reactor_stats.fuel, reactor_stats.fuel_max, safe_width) }
+        lines[#lines + 1] = build_bar_line("Fuel Fill", reactor_stats.fuel, reactor_stats.fuel_max, safe_width)
 
         local details = {}
         if reactor_stats.fuel_used ~= nil then
@@ -406,7 +458,7 @@ local function build_lines(reactor_stats, induction_stats, width)
     else
         lines[#lines + 1] = { text = "Matrix: OK", colour = colours.green }
         lines[#lines + 1] = { text = "Energy: " .. format_amount(induction_stats.energy, induction_stats.energy_capacity, "RF") }
-        lines[#lines + 1] = { text = build_bar_line("Matrix Fill", induction_stats.energy, induction_stats.energy_capacity, safe_width) }
+        lines[#lines + 1] = build_bar_line("Matrix Fill", induction_stats.energy, induction_stats.energy_capacity, safe_width)
 
         local flow_parts = {}
         if induction_stats.input ~= nil then
@@ -439,25 +491,54 @@ local function render_lines(lines)
 
     for i = 1, max_lines do
         local line = lines[i] or {}
-        local text = line.text or ""
-        if #text > width then
-            text = string.sub(text, 1, width)
-        end
+        if line.segments and STATE.display_colour and display.setTextColour then
+            if display.setCursorPos then
+                display.setCursorPos(1, i)
+            end
+            if display.clearLine then
+                display.clearLine()
+            end
 
-        if display.setCursorPos then
-            display.setCursorPos(1, i)
-        end
-        if display.clearLine then
-            display.clearLine()
-        end
-        if STATE.display_colour and line.colour and display.setTextColour then
-            display.setTextColour(line.colour)
-        end
-        if display.write then
-            display.write(text)
-        end
-        if STATE.display_colour and line.colour and display.setTextColour then
+            local remaining = width
+            for _, segment in ipairs(line.segments) do
+                if remaining <= 0 then
+                    break
+                end
+                local text = segment.text or ""
+                if #text > remaining then
+                    text = string.sub(text, 1, remaining)
+                end
+                if segment.colour and display.setTextColour then
+                    display.setTextColour(segment.colour)
+                end
+                if display.write then
+                    display.write(text)
+                end
+                remaining = remaining - #text
+            end
+
             display.setTextColour(colours.white)
+        else
+            local text = line.text or ""
+            if #text > width then
+                text = string.sub(text, 1, width)
+            end
+
+            if display.setCursorPos then
+                display.setCursorPos(1, i)
+            end
+            if display.clearLine then
+                display.clearLine()
+            end
+            if STATE.display_colour and line.colour and display.setTextColour then
+                display.setTextColour(line.colour)
+            end
+            if display.write then
+                display.write(text)
+            end
+            if STATE.display_colour and line.colour and display.setTextColour then
+                display.setTextColour(colours.white)
+            end
         end
     end
 
