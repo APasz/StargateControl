@@ -242,7 +242,7 @@ local function build_bar_line(label, value, max_value, width, use_colour)
     end
 
     local bar_text = table.concat(bar_chars)
-    local line_text = prefix .. "[" .. bar_text .. "]"
+    local line_text = prefix .. bar_text
 
     local segments = {
         { text = prefix .. "[", colour = colours.white, bg = colours.black },
