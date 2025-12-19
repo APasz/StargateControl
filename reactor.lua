@@ -179,7 +179,7 @@ local function format_temp(value)
     return string.format("%.0fC", numeric)
 end
 
-local function build_bar_line(label, value, max_value, width)
+local function build_bar_line(label, value, max_value, width, use_colour)
     local safe_width = width or 32
     local prefix = label .. " "
     local available = safe_width - #prefix - 2
@@ -214,10 +214,22 @@ local function build_bar_line(label, value, max_value, width)
 
     local bar_chars = {}
     local bar_colours = {}
+    local bar_bg = {}
+    local filled_bg = colours.lime
+    local empty_bg = colours.gray
+    local filled_char = use_colour and " " or "="
+    local empty_char = use_colour and " " or "-"
+    local base_colour = use_colour and colours.black or colours.white
+
     for i = 1, available do
         local is_filled = ratio ~= nil and i <= filled
-        bar_chars[i] = is_filled and "=" or "-"
-        bar_colours[i] = is_filled and colours.lime or colours.gray
+        bar_chars[i] = is_filled and filled_char or empty_char
+        bar_colours[i] = base_colour
+        if use_colour then
+            bar_bg[i] = is_filled and filled_bg or empty_bg
+        else
+            bar_bg[i] = colours.black
+        end
     end
 
     local start_idx = math.floor((available - #percent_text) / 2) + 1
@@ -233,29 +245,33 @@ local function build_bar_line(label, value, max_value, width)
     local line_text = prefix .. "[" .. bar_text .. "]"
 
     local segments = {
-        { text = prefix .. "[", colour = colours.white },
+        { text = prefix .. "[", colour = colours.white, bg = colours.black },
     }
 
     local current_colour = nil
+    local current_bg = nil
     local buffer = ""
     for i = 1, available do
         local colour = bar_colours[i] or colours.white
+        local bg = bar_bg[i] or colours.black
         local char = bar_chars[i] or ""
         if current_colour == nil then
             current_colour = colour
+            current_bg = bg
             buffer = char
-        elseif colour == current_colour then
+        elseif colour == current_colour and bg == current_bg then
             buffer = buffer .. char
         else
-            segments[#segments + 1] = { text = buffer, colour = current_colour }
+            segments[#segments + 1] = { text = buffer, colour = current_colour, bg = current_bg }
             current_colour = colour
+            current_bg = bg
             buffer = char
         end
     end
     if buffer ~= "" then
-        segments[#segments + 1] = { text = buffer, colour = current_colour }
+        segments[#segments + 1] = { text = buffer, colour = current_colour, bg = current_bg }
     end
-    segments[#segments + 1] = { text = "]", colour = colours.white }
+    segments[#segments + 1] = { text = "]", colour = colours.white, bg = colours.black }
 
     return { text = line_text, segments = segments }
 end
@@ -271,7 +287,7 @@ end
 
 local function update_display_state()
     local display, is_monitor, name = resolve_display()
-    local changed = display ~= STATE.display or name ~= STATE.display_name or is_monitor ~= STATE.display_is_monitor
+    local changed = name ~= STATE.display_name or is_monitor ~= STATE.display_is_monitor
 
     STATE.display = display
     STATE.display_name = name
@@ -303,6 +319,17 @@ local function update_display_state()
     STATE.display_colour = display and ((display.isColour and display.isColour()) or (display.isColor and display.isColor())) or false
 
     return display
+end
+
+local function set_background(display, colour)
+    if not display or not colour then
+        return
+    end
+    if display.setBackgroundColour then
+        display.setBackgroundColour(colour)
+    elseif display.setBackgroundColor then
+        display.setBackgroundColor(colour)
+    end
 end
 
 local function find_first_type(type_list)
@@ -396,7 +423,7 @@ local function read_induction_stats(induction)
     }
 end
 
-local function build_lines(reactor_stats, induction_stats, width)
+local function build_lines(reactor_stats, induction_stats, width, use_colour)
     local lines = {}
     local safe_width = width or 32
 
@@ -421,7 +448,7 @@ local function build_lines(reactor_stats, induction_stats, width)
             lines[#lines + 1] = { text = "Output: N/A" }
         end
         lines[#lines + 1] = { text = "Fuel: " .. format_amount(reactor_stats.fuel, reactor_stats.fuel_max, "mB") }
-        lines[#lines + 1] = build_bar_line("Fuel Fill", reactor_stats.fuel, reactor_stats.fuel_max, safe_width)
+        lines[#lines + 1] = build_bar_line("Fuel Fill", reactor_stats.fuel, reactor_stats.fuel_max, safe_width, use_colour)
 
         local details = {}
         if reactor_stats.fuel_used ~= nil then
@@ -458,7 +485,7 @@ local function build_lines(reactor_stats, induction_stats, width)
     else
         lines[#lines + 1] = { text = "Matrix: OK", colour = colours.green }
         lines[#lines + 1] = { text = "Energy: " .. format_amount(induction_stats.energy, induction_stats.energy_capacity, "RF") }
-        lines[#lines + 1] = build_bar_line("Matrix Fill", induction_stats.energy, induction_stats.energy_capacity, safe_width)
+        lines[#lines + 1] = build_bar_line("Matrix Fill", induction_stats.energy, induction_stats.energy_capacity, safe_width, use_colour)
 
         local flow_parts = {}
         if induction_stats.input ~= nil then
@@ -496,6 +523,7 @@ local function render_lines(lines)
                 display.setCursorPos(1, i)
             end
             if display.clearLine then
+                set_background(display, colours.black)
                 display.clearLine()
             end
 
@@ -511,12 +539,14 @@ local function render_lines(lines)
                 if segment.colour and display.setTextColour then
                     display.setTextColour(segment.colour)
                 end
+                set_background(display, segment.bg or colours.black)
                 if display.write then
                     display.write(text)
                 end
                 remaining = remaining - #text
             end
 
+            set_background(display, colours.black)
             display.setTextColour(colours.white)
         else
             local text = line.text or ""
@@ -560,6 +590,6 @@ while true do
     update_display_state()
     local reactor_stats = read_reactor_stats(STATE.reactor)
     local induction_stats = read_induction_stats(STATE.induction)
-    render_lines(build_lines(reactor_stats, induction_stats, STATE.display_width))
+    render_lines(build_lines(reactor_stats, induction_stats, STATE.display_width, STATE.display_colour))
     sleep(refresh_interval)
 end
