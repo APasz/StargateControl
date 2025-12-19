@@ -5,7 +5,7 @@ rednet.open("left")
 local REQUEST_PROTOCOL = "files_request"
 local REPLY_PROTOCOL = "files_reply"
 local SERVER_NAME = "SGServer"
-local BASE_DIR = "disk"
+local DEFAULT_BASE_DIR = "disk"
 local FILE_LIST = require("file_list")
 
 rednet.host(REQUEST_PROTOCOL, SERVER_NAME)
@@ -32,8 +32,9 @@ local function build_file_map(list)
     for scope, files in pairs(list) do
         local map = {}
         for _, file in ipairs(files) do
+            local base_dir = file.disk or DEFAULT_BASE_DIR
             map[file.filename] = {
-                src = fs.combine(BASE_DIR, file.git),
+                src = fs.combine(base_dir, file.git),
                 dst = file.filename,
                 override = file.override ~= false,
             }

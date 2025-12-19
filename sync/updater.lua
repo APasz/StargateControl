@@ -1,4 +1,4 @@
--- Downloads StargateControl files from GitHub into disk/*.lua
+-- Downloads StargateControl files from GitHub into disk/*.lua (or disk2/..., per file_list)
 
 if not http then
     error("HTTP API is disabled")
@@ -6,13 +6,9 @@ end
 
 local BASE_URL = "https://raw.githubusercontent.com/APasz/StargateControl/main/"
 local COMMITS_API_URL = "https://api.github.com/repos/APasz/StargateControl/commits/main"
-local TARGET_DIR = "disk"
+local DEFAULT_TARGET_DIR = "disk"
 local FILE_LIST_PATH = "sync/file_list.lua"
 local UPDATER_PATH = "sync/updater.lua"
-
-if not fs.exists(TARGET_DIR) or not fs.isDir(TARGET_DIR) then
-    error("No '" .. TARGET_DIR .. "' directory")
-end
 
 local function download(url, headers)
     local res, err = http.get(url, headers)
@@ -78,7 +74,7 @@ local function load_file_list()
     return result
 end
 
-local function download_file(path, destination)
+local function download_file(path, destination, target_dir)
     local url = BASE_URL .. path
     local content, err = download(url)
     if not content then
@@ -86,7 +82,8 @@ local function download_file(path, destination)
         return false
     end
 
-    local target_path = destination or fs.combine(TARGET_DIR, path)
+    local base_dir = target_dir or DEFAULT_TARGET_DIR
+    local target_path = destination or fs.combine(base_dir, path)
     local dir = fs.getDir(target_path)
     if dir and dir ~= "" then
         fs.makeDir(dir)
@@ -104,26 +101,71 @@ local function download_file(path, destination)
     return true
 end
 
-local function collect_paths(file_list)
-    local paths = {}
-    for _, files in pairs(file_list) do
-        for _, file in ipairs(files) do
-            paths[file.git] = true
+local function collect_files(file_list)
+    local files = {}
+    local seen = {}
+
+    for _, scope_files in pairs(file_list) do
+        for _, file in ipairs(scope_files) do
+            local path = file.git
+            if path ~= FILE_LIST_PATH then
+                local disk = file.disk
+                local key = ("%s:%s"):format(disk or "", path)
+                if not seen[key] then
+                    files[#files + 1] = { path = path, disk = disk }
+                    seen[key] = true
+                end
+            end
         end
     end
-    return paths
+
+    return files
+end
+
+local function validate_target_dirs(files)
+    local missing = {}
+
+    if not fs.exists(DEFAULT_TARGET_DIR) or not fs.isDir(DEFAULT_TARGET_DIR) then
+        missing[DEFAULT_TARGET_DIR] = true
+    end
+
+    for _, file in ipairs(files) do
+        local base_dir = file.disk or DEFAULT_TARGET_DIR
+        if not fs.exists(base_dir) or not fs.isDir(base_dir) then
+            missing[base_dir] = true
+        end
+    end
+
+    if next(missing) then
+        local dirs = {}
+        for dir in pairs(missing) do
+            dirs[#dirs + 1] = dir
+        end
+        error("Missing target disk directories: " .. table.concat(dirs, ", "), 0)
+    end
+end
+
+local function resolve_disk_for_file(file)
+    return file.disk or DEFAULT_TARGET_DIR
+end
+
+local function download_files(files)
+    local ok = true
+    for _, file in ipairs(files) do
+        local disk = resolve_disk_for_file(file)
+        ok = download_file(file.path, nil, disk) and ok
+    end
+    return ok
 end
 
 local file_list = load_file_list()
 local commit_name, commit_err = fetch_latest_commit_name()
 
-local paths = collect_paths(file_list)
+local files = collect_files(file_list)
+validate_target_dirs(files)
 
-local success = true
-
-for path in pairs(paths) do
-    success = download_file(path) and success
-end
+local success = download_file(FILE_LIST_PATH, nil, DEFAULT_TARGET_DIR)
+success = download_files(files) and success
 
 success = download_file(UPDATER_PATH, "updater.lua") and success
 

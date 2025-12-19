@@ -20,19 +20,20 @@ return {
         { filename = "updater.lua", git = "sync/updater.lua", override=true },
     },
     shared = {
-        { filename = "utils.lua", git = "utils.lua", override=true },
-        { filename = "address_utils.lua", git = "address_utils.lua", override=true },
-        { filename = "monitor_utils.lua", git = "monitor_utils.lua", override=true },
-        { filename = "peripheral_utils.lua", git = "peripheral_utils.lua", override=true },
-        { filename = "menu_utils.lua", git = "menu_utils.lua", override=true },
-        { filename = "dialing_utils.lua", git = "dialing_utils.lua", override=true },
-        { filename = "addresses.lua", git = "addresses.lua", override=true },
         { filename = "file_list.lua", git = "sync/file_list.lua", override=true },
-        { filename = "client.lua", git = "sync/client.lua", override=true },
-        { filename = "client_config.lua", git = "sync/client_config.lua", override=false },
+        { filename = "utils.lua", git = "utils.lua", override=true, disk = "disk2" },
+        { filename = "address_utils.lua", git = "address_utils.lua", override=true, disk = "disk2" },
+        { filename = "monitor_utils.lua", git = "monitor_utils.lua", override=true, disk = "disk2" },
+        { filename = "peripheral_utils.lua", git = "peripheral_utils.lua", override=true, disk = "disk2" },
+        { filename = "menu_utils.lua", git = "menu_utils.lua", override=true, disk = "disk2" },
+        { filename = "dialing_utils.lua", git = "dialing_utils.lua", override=true, disk = "disk2" },
+        { filename = "addresses.lua", git = "addresses.lua", override=true, disk = "disk2" },
+        { filename = "client.lua", git = "sync/client.lua", override=true, disk = "disk2" },
+        { filename = "client_config.lua", git = "sync/client_config.lua", override=false, disk = "disk2" },
     },
 }
 -- Outer table signifys the scope a PC is using, client should identifier which scope of files it requires
 -- filename: Identifier and name it should have on the client
 -- git: Relative location of the file in repo
 -- override: If this file should override a local copy
+-- disk: Optional disk directory (e.g. "disk2") for updater/server storage; defaults to "disk"

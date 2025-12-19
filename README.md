@@ -121,3 +121,6 @@ Run `client setup` to create/refresh this file; pass a second arg to set `primar
 - `sync/file_list.lua`: defines scopes (`shared`, `dialing`, `alarming`, `server`) and the files each scope provides; edit to add your own files.
 - `sync/server.lua`: open a modem, host `files_request` as `SGServer`, and serve files from `disk/<path-from-file_list>`.
 - `sync/client.lua`: looks up `SGServer`, downloads the configured files, writes them atomically, and runs `primary_file` (default `dial`). Use `client setup` the first time to pull required files (`settings.lua`, `addresses.lua`, etc.), optionally with a second arg to set the primary program (`client setup alarm`); later runs can just call `client` to refresh and launch. `client_config.scope` can force a specific scope if needed.
+
+### Multi-disk server storage
+If the server disk is too small, you can split files across multiple disk drives by adding `disk = "disk2"` (or similar) to entries in `sync/file_list.lua`. The updater and server will read that field and store/serve the file from that disk directory. Keep `sync/file_list.lua` itself on the default `disk` so the server can `require` it.
