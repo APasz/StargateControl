@@ -10,6 +10,10 @@ local DEFAULT_SETTINGS_CONTENT = [[return {
     -- optional peripheral name; nil auto-detects
     induction_name = nil,
     -- optional induction port name; nil auto-detects
+    auto_shutdown_threshold = 0.8,
+    -- shut off reactor when internal energy exceeds this fraction (0-1)
+    auto_start_threshold = 0.2,
+    -- turn reactor back on when energy falls below this fraction (0-1)
 }
 ]]
 
@@ -43,6 +47,8 @@ local SETTINGS = load_or_create_settings()
 
 local DEFAULT_MONITOR_SCALE = 1
 local DEFAULT_REFRESH_INTERVAL = 1
+local DEFAULT_AUTO_SHUTOFF_THRESHOLD = 0.8
+local DEFAULT_AUTO_START_THRESHOLD = 0.2
 
 local function read_positive_number(value, fallback)
     local numeric = tonumber(value)
@@ -52,8 +58,22 @@ local function read_positive_number(value, fallback)
     return numeric
 end
 
+local function read_fraction(value, fallback)
+    local numeric = tonumber(value)
+    if numeric == nil or numeric < 0 or numeric > 1 then
+        return fallback
+    end
+    return numeric
+end
+
 local monitor_scale = read_positive_number(SETTINGS.monitor_scale, DEFAULT_MONITOR_SCALE)
 local refresh_interval = read_positive_number(SETTINGS.refresh_interval, DEFAULT_REFRESH_INTERVAL)
+local auto_shutdown_threshold = read_fraction(SETTINGS.auto_shutdown_threshold, DEFAULT_AUTO_SHUTOFF_THRESHOLD)
+local auto_start_threshold = read_fraction(SETTINGS.auto_start_threshold, DEFAULT_AUTO_START_THRESHOLD)
+
+if auto_start_threshold > auto_shutdown_threshold then
+    auto_start_threshold = auto_shutdown_threshold
+end
 
 local REACTOR_TYPES = {
     "BigReactors-Reactor",
@@ -434,6 +454,44 @@ local function read_induction_stats(induction)
     }
 end
 
+local function set_reactor_active(reactor, active)
+    if not reactor then
+        return false
+    end
+
+    if safe_call(reactor, "setActive", active) ~= nil then
+        return true
+    end
+
+    if safe_call(reactor, "setIsActive", active) ~= nil then
+        return true
+    end
+
+    return false
+end
+
+local function desired_reactor_state(reactor_stats)
+    if not reactor_stats then
+        return nil
+    end
+
+    local energy = tonumber(reactor_stats.energy)
+    local capacity = tonumber(reactor_stats.energy_capacity)
+    if not energy or not capacity or capacity <= 0 then
+        return nil
+    end
+
+    local ratio = energy / capacity
+    if ratio > auto_shutdown_threshold then
+        return false
+    end
+    if ratio < auto_start_threshold then
+        return true
+    end
+
+    return nil
+end
+
 local function build_lines(reactor_stats, induction_stats, width, use_colour)
     local lines = {}
     local safe_width = width or 32
@@ -598,6 +656,12 @@ while true do
     local display = update_display_state()
     local reactor_stats = read_reactor_stats(STATE.reactor)
     local induction_stats = read_induction_stats(STATE.induction)
+    local desired_active = desired_reactor_state(reactor_stats)
+    if desired_active ~= nil then
+        if reactor_stats and reactor_stats.active ~= desired_active then
+            set_reactor_active(STATE.reactor, desired_active)
+        end
+    end
     render_lines(display, build_lines(reactor_stats, induction_stats, STATE.display_width, STATE.display_colour))
     sleep(refresh_interval)
 end
