@@ -13,6 +13,17 @@ function M.init(ctx)
         return math.floor((os.clock and os.clock() or 0) * 1000)
     end
 
+    local function get_countdown_failsafe_delay()
+        local delay = SG_SETTINGS.countdown_failsafe_delay
+        if delay == false then
+            return 0
+        end
+        if type(delay) ~= "number" then
+            return 3
+        end
+        return math.max(delay, 0)
+    end
+
     local function cancel_timer(name)
         TIMER_SCHEDULE[name] = nil
     end
@@ -36,6 +47,9 @@ function M.init(ctx)
         STATE.pending_timeout = nil
         STATE.timeout_remaining = nil
         STATE.countdown_deadline = nil
+        STATE.countdown_pending = false
+        STATE.countdown_pending_at = nil
+        STATE.countdown_forced = false
         ctx.utils.update_line("", 2)
     end
 
@@ -53,7 +67,7 @@ function M.init(ctx)
         start_timer("incoming", 1)
     end
 
-    local function start_countdown(remaining)
+    local function start_countdown(remaining, force)
         clear_incoming_counter()
         reset_timer()
         local timeout = SG_SETTINGS.timeout
@@ -63,12 +77,13 @@ function M.init(ctx)
         timeout = math.max(timeout or 0, 0)
         STATE.timeout_remaining = timeout
         STATE.countdown_deadline = now_ms() + (timeout * 1000)
+        STATE.countdown_forced = force == true
         show_disconnect_line(STATE.timeout_remaining)
     end
 
     local function start_countdown_when_established(remaining)
         -- Defer the disconnect timer until the wormhole is fully connected.
-        if STATE.countdown_deadline or STATE.pending_timeout then
+        if STATE.countdown_deadline or STATE.countdown_pending then
             return
         end
         clear_incoming_counter()
@@ -78,6 +93,9 @@ function M.init(ctx)
         else
             STATE.pending_timeout = nil
         end
+        STATE.countdown_pending = true
+        STATE.countdown_pending_at = now_ms()
+        STATE.countdown_forced = false
         if ctx.is_wormhole_open and ctx.is_wormhole_open() then
             STATE.pending_timeout = nil
             start_countdown(remaining)
@@ -177,12 +195,24 @@ function M.init(ctx)
             STATE.countdown_deadline = nil
             STATE.pending_timeout = nil
             STATE.timeout_remaining = nil
+            STATE.countdown_pending = false
+            STATE.countdown_pending_at = nil
+            STATE.countdown_forced = false
             return
         end
 
         if STATE.outbound == true then
             local open = ctx.is_wormhole_open and ctx.is_wormhole_open()
-            if open then
+            if not open and STATE.countdown_pending and not STATE.countdown_forced then
+                local delay = get_countdown_failsafe_delay()
+                if delay and delay > 0 then
+                    local pending_at = STATE.countdown_pending_at
+                    if pending_at and now - pending_at >= delay * 1000 then
+                        STATE.countdown_forced = true
+                    end
+                end
+            end
+            if open or STATE.countdown_forced then
                 if not STATE.countdown_deadline then
                     local timeout = STATE.pending_timeout
                     if timeout == nil then
@@ -192,6 +222,8 @@ function M.init(ctx)
                     STATE.pending_timeout = nil
                     STATE.timeout_remaining = timeout
                     STATE.countdown_deadline = now + (timeout * 1000)
+                    STATE.countdown_pending = false
+                    STATE.countdown_pending_at = nil
                     show_disconnect_line(timeout)
                 end
 
@@ -212,7 +244,7 @@ function M.init(ctx)
             else
                 STATE.countdown_deadline = nil
                 STATE.timeout_remaining = nil
-                if STATE.pending_timeout ~= nil then
+                if STATE.countdown_pending then
                     show_disconnect_line("X")
                 end
             end

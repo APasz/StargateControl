@@ -54,6 +54,7 @@ return {
     alarm_protocol = "sg_alarm", -- rednet protocol used for incoming-wormhole alarms
     rs_safe_env = nil,        -- side to detect redstone signal if the local environment is safe (set to true/false to force always safe/unsafe)
     timeout = 60,             -- seconds before outbound wormholes auto-disconnect
+    countdown_failsafe_delay = 3, -- seconds before outbound countdown starts if open events are missing (0 disables)
     dialing_colour = "green", -- colour to use during dialing progress
     energy_protocol = "sg_aux", -- rednet protocol used when sending energy updates
 }

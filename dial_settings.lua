@@ -11,6 +11,8 @@ return {
     -- side to detect redstone signal if the local environment is safe (set to true to force always-safe)
     timeout = 60,
     -- time until wormhole is autoclosed
+    countdown_failsafe_delay = 3,
+    -- seconds before outbound disconnect countdown starts if open events are missing (0 disables)
     reset_on_gate_reset = true,
     -- when true, clear local state and UI on stargate_reset events
     dialing_colour = "green",
