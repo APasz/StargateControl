@@ -1,11 +1,114 @@
-package.path = package.path .. ";disk/?.lua;disk/?/init.lua"
-local SG_UTILS = require("utils")
-
 local M = {}
 
 function M.init(ctx)
+    local SG_UTILS = ctx.utils
     local SG_SETTINGS = ctx.settings
     local STATE = ctx.state
+    local FEEDBACK_BLACKLIST_TYPES = ctx.feedback_blacklist_types or {}
+    local FEEDBACK_BLACKLIST_CODES = ctx.feedback_blacklist_codes or {}
+
+    local FEEDBACK_CODE_MAP = {
+        [0] = { type = "info", label = "none" },
+        [-1] = { type = "error", label = "unknown" },
+        [1] = { type = "info", label = "symbol_encoded" },
+        [-2] = { type = "error", label = "symbol_in_address" },
+        [-3] = { type = "error", label = "symbol_out_of_bounds" },
+        [-4] = { type = "error", label = "encode_when_connected" },
+        [2] = { type = "info", label = "connection_established.system_wide" },
+        [3] = { type = "info", label = "connection_established.interstellar" },
+        [4] = { type = "info", label = "connection_established.intergalactic" },
+        [-5] = { type = "major_error", label = "incomplete_address" },
+        [-6] = { type = "major_error", label = "invalid_address" },
+        [-7] = { type = "major_error", label = "not_enough_power" },
+        [-8] = { type = "major_error", label = "self_obstructed" },
+        [-9] = { type = "skippable_error", label = "target_obstructed" },
+        [-10] = { type = "major_error", label = "self_dial" },
+        [-11] = { type = "major_error", label = "same_system_dial" },
+        [-12] = { type = "major_error", label = "already_connected" },
+        [-13] = { type = "major_error", label = "no_galaxy" },
+        [-14] = { type = "major_error", label = "no_dimensions" },
+        [-15] = { type = "major_error", label = "no_stargates" },
+        [-16] = { type = "skippable_error", label = "target_restricted" },
+        [-17] = { type = "major_error", label = "invalid_8_chevron_address" },
+        [-18] = { type = "major_error", label = "invalid_system_wide_connection" },
+        [-19] = { type = "major_error", label = "target_not_whitelisted" },
+        [-20] = { type = "skippable_error", label = "not_whitelisted_by_target" },
+        [-21] = { type = "major_error", label = "target_blacklisted" },
+        [-22] = { type = "skippable_error", label = "blacklisted_by_target" },
+        [7] = { type = "info", label = "connection_ended.disconnect" },
+        [8] = { type = "info", label = "connection_ended.point_of_origin" },
+        [9] = { type = "info", label = "connection_ended.stargate_network" },
+        [10] = { type = "info", label = "connection_ended.autoclose" },
+        [-23] = { type = "error", label = "exceeded_connection_time" },
+        [-24] = { type = "error", label = "ran_out_of_power" },
+        [-25] = { type = "error", label = "connection_rerouted" },
+        [-26] = { type = "error", label = "wrong_disconnect_side" },
+        [-27] = { type = "error", label = "connection_forming" },
+        [-28] = { type = "error", label = "stargate_destroyed" },
+        [-29] = { type = "major_error", label = "could_not_reach_target_stargate" },
+        [-30] = { type = "error", label = "interrupted_by_incoming_connection" },
+        [11] = { type = "info", label = "chevron_opened" },
+        [12] = { type = "info", label = "rotating" },
+        [-31] = { type = "info", label = "rotation_blocked" },
+        [-32] = { type = "info", label = "not_rotating" },
+        [13] = { type = "info", label = "rotation_stopped" },
+        [-33] = { type = "error", label = "chevron_already_opened" },
+        [-34] = { type = "error", label = "chevron_already_closed" },
+        [-35] = { type = "error", label = "chevron_not_open" },
+        [-36] = { type = "error", label = "cannot_encode_point_of_origin" },
+        [-37] = { type = "error", label = "target_not_loaded" },
+    }
+
+    local function now_ms()
+        return (os.epoch and os.epoch("utc")) or (os.clock and (os.clock() * 1000)) or 0
+    end
+
+    local function humanize_feedback_label(label)
+        if type(label) ~= "string" then
+            return nil
+        end
+        local normalized = label:gsub("[_%.]", " "):gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
+        if normalized == "" then
+            return nil
+        end
+        return normalized
+    end
+
+    local function build_feedback_entry(code, desc)
+        if type(code) ~= "number" then
+            return nil
+        end
+
+        local mapped = FEEDBACK_CODE_MAP[code]
+        local feedback_type = mapped and mapped.type or nil
+        local label = (type(desc) == "string" and desc ~= "" and desc) or (mapped and mapped.label) or nil
+        local display = humanize_feedback_label(label) or ("Feedback " .. tostring(code))
+        local suppressed = (FEEDBACK_BLACKLIST_CODES and FEEDBACK_BLACKLIST_CODES[code] == true)
+            or (feedback_type and FEEDBACK_BLACKLIST_TYPES and FEEDBACK_BLACKLIST_TYPES[feedback_type] == true)
+
+        return {
+            code = code,
+            type = feedback_type,
+            label = label,
+            display = display,
+            suppressed = suppressed,
+        }
+    end
+
+    local function record_feedback(code, desc)
+        local entry = build_feedback_entry(code, desc)
+        STATE.last_feedback = entry
+        STATE.last_feedback_at = now_ms()
+        return entry
+    end
+
+    local function feedback_lines(title, code, desc)
+        local entry = record_feedback(code, desc)
+        if entry and not entry.suppressed and entry.display then
+            return { title, "Reason: " .. entry.display }
+        end
+        return title
+    end
 
     local function handle_timer_event(timer_id)
         if ctx.tick_timer_id and timer_id == ctx.tick_timer_id then
@@ -87,7 +190,7 @@ function M.init(ctx)
         STATE.gate = nil
         STATE.gate_id = nil
         if ctx.show_disconnected_screen then
-            ctx.show_disconnected_screen()
+            ctx.show_disconnected_screen(feedback_lines("Stargate Disconnected", feedback_num, feedback_desc))
         end
     end
 
@@ -176,6 +279,7 @@ function M.init(ctx)
         if ctx.send_alarm_update then
             ctx.send_alarm_update(false)
         end
+        local message = feedback_lines("Stargate Reset", feedback_num, feedback_desc)
         SG_UTILS.reset_outputs(SG_UTILS.get_inf_rs())
         if SG_SETTINGS.reset_on_gate_reset then
             if ctx.reset_timer then
@@ -187,7 +291,7 @@ function M.init(ctx)
             STATE.gate_id = nil
             STATE.disconnected_early = false
             if ctx.show_disconnected_screen then
-                ctx.show_disconnected_screen()
+                ctx.show_disconnected_screen(message)
             end
         end
     end

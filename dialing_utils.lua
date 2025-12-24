@@ -64,7 +64,7 @@ function DialingUtils.dial_fast(gate, cancel_check, progress_cb)
             if engage_reason == "cancelled" or is_cancelled(cancel_check) then
                 return false, "cancelled"
             end
-            return false, "failed"
+            return false, engage_reason or "failed"
         end
         if is_cancelled(cancel_check) then
             peripheral_utils.reset_stargate()

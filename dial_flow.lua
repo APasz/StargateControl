@@ -1,14 +1,56 @@
-package.path = package.path .. ";disk/?.lua;disk/?/init.lua"
-local SG_UTILS = require("utils")
-
 local M = {}
 
 function M.init(ctx)
+    local SG_UTILS = ctx.utils
     local SG_SETTINGS = ctx.settings
     local STATE = ctx.state
     local SG_ADDRESSES = ctx.addresses
 
-    local function show_disconnected_screen()
+    local function dial_failure_message(reason, cancel_reason)
+        local feedback = STATE.last_feedback
+        if reason ~= "cancelled" and not cancel_reason and feedback and not feedback.suppressed then
+            local display = feedback.display
+            if type(display) == "string" and display ~= "" then
+                return { "Dial failed", "Reason: " .. display }
+            end
+        end
+
+        if reason == "no_gate" then
+            return "No gate interface found"
+        end
+
+        if reason == "cancelled" or cancel_reason then
+            local labels = {
+                user = "User input",
+                incoming = "Incoming wormhole",
+                stargate_incoming_wormhole = "Incoming wormhole",
+                terminate = "Terminate requested",
+            }
+            local detail = labels[cancel_reason]
+            if not detail and type(cancel_reason) == "string" and cancel_reason ~= "" then
+                detail = cancel_reason
+            end
+            if detail then
+                return { "Dial cancelled", "Reason: " .. detail }
+            end
+            return "Dial cancelled"
+        end
+
+        local labels = {
+            timeout = "Encoding timeout",
+            failed = "Encoding failed",
+        }
+        local detail = labels[reason]
+        if not detail and type(reason) == "string" and reason ~= "" then
+            detail = reason
+        end
+        if detail then
+            return { "Dial failed", "Reason: " .. detail }
+        end
+        return "Dial failed"
+    end
+
+    local function show_disconnected_screen(lines)
         if ctx.clear_disconnect_fallback then
             ctx.clear_disconnect_fallback()
         end
@@ -16,7 +58,7 @@ function M.init(ctx)
             ctx.clear_incoming_counter()
         end
         if ctx.show_status then
-            ctx.show_status("Stargate Disconnected")
+            ctx.show_status(lines or "Stargate Disconnected")
         end
         if ctx.clear_screen_timer then
             ctx.clear_screen_timer()
@@ -139,6 +181,8 @@ function M.init(ctx)
             return
         end
 
+        STATE.last_feedback = nil
+        STATE.last_feedback_at = nil
         STATE.gate = gate
         STATE.gate_id = SG_UTILS.address_to_string(gate.address)
         STATE.disconnected_early = false
@@ -194,10 +238,8 @@ function M.init(ctx)
             return
         end
 
-        local message
-        if reason == "no_gate" then
-            message = "No gate interface found"
-        elseif reason == "cancelled" or cancel_reason then
+        local message = dial_failure_message(reason, cancel_reason)
+        if reason == "cancelled" or cancel_reason then
             local connection_active = STATE.outbound == false
                 or STATE.gate_id == "Incoming"
                 or STATE.connected
@@ -205,9 +247,6 @@ function M.init(ctx)
             if connection_active and (cancel_reason == "incoming" or cancel_reason == "stargate_incoming_wormhole") then
                 return
             end
-            message = "Dial cancelled"
-        else
-            message = "Dial failed"
         end
 
         STATE.outbound = nil

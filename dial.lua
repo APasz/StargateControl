@@ -86,6 +86,8 @@ local STATE = {
     pending_timeout = nil,
     countdown_deadline = nil,
     top_lines = 0,
+    last_feedback = nil,
+    last_feedback_at = nil,
 }
 local TICK_INTERVAL = 0.25 -- scheduler tick in seconds
 local TIMER_SCHEDULE = {}
@@ -111,6 +113,10 @@ local CANCEL_EVENT_BLACKLIST = {
     stargate_message = true,
     stargate_message_received = true,
 }
+local FEEDBACK_BLACKLIST_TYPES = {
+    info = true,
+}
+local FEEDBACK_BLACKLIST_CODES = {}
 
 local ctx = {
     utils = SG_UTILS,
@@ -129,6 +135,8 @@ local ctx = {
     tick_interval = TICK_INTERVAL,
     tick_timer_id = nil,
     cancel_event_blacklist = CANCEL_EVENT_BLACKLIST,
+    feedback_blacklist_types = FEEDBACK_BLACKLIST_TYPES,
+    feedback_blacklist_codes = FEEDBACK_BLACKLIST_CODES,
 }
 
 require("dial_comm").init(ctx)
