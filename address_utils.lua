@@ -110,6 +110,10 @@ function AddressUtils.filtered_addresses(all, site_override)
         local allowed_list = to_set(g.only_from)
         local _, gate_site = normalise_name(g.site)
         local _, gate_galaxy = normalise_name(g.galaxy)
+        local is_intergalactic = false
+        if galaxy_id and gate_galaxy and gate_galaxy ~= galaxy_id then
+            is_intergalactic = true
+        end
 
         local hide = site_id and (hide_list[site_id] or gate_site == site_id)
         local allowed = (not g.only_from) or not site_id or allowed_list[site_id]
@@ -122,6 +126,7 @@ function AddressUtils.filtered_addresses(all, site_override)
         end
 
         if not hide and allowed and allowed_dest and galaxy_ok then
+            g.is_intergalactic = is_intergalactic
             table.insert(result, g)
         end
     end
@@ -212,6 +217,9 @@ function AddressUtils.format_address(idx, gate, max_width, with_number)
     end
 
     local base = gate.site or ""
+    if gate.is_intergalactic then
+        base = "[" .. base .. "]"
+    end
     local text = with_number == false and base or (idx .. " = " .. base)
     if not max_width or #text <= max_width then
         return text
