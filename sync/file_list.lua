@@ -4,6 +4,12 @@ return {
     },
     dialing = {
         { filename = "dial.lua", git = "dial.lua", override=true },
+        { filename = "dial_comm.lua", git = "dial_comm.lua", override=true },
+        { filename = "dial_gate.lua", git = "dial_gate.lua", override=true },
+        { filename = "dial_ui.lua", git = "dial_ui.lua", override=true },
+        { filename = "dial_timers.lua", git = "dial_timers.lua", override=true },
+        { filename = "dial_flow.lua", git = "dial_flow.lua", override=true },
+        { filename = "dial_events.lua", git = "dial_events.lua", override=true },
         { filename = "settings.lua", git = "dial_settings.lua", override=false },
     },
     alarming = {
