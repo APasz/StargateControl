@@ -90,25 +90,34 @@ local function set_toggle(active)
         rs.setOutput(AL_SETTINGS.side_toggle, active)
     end
 end
-local function open_alarm_modem()
-    if MODEM_STATE.side and rednet.isOpen(MODEM_STATE.side) then
-        return MODEM_STATE.side
+
+local function open_named_modem(opts)
+    if not opts or not opts.state then
+        return nil
     end
 
-    if CLIENT_MODEM_SIDE then
-        if peripheral.getType(CLIENT_MODEM_SIDE) == "modem" then
-            local ok, err = pcall(rednet.open, CLIENT_MODEM_SIDE)
+    local state = opts.state
+    local side_key = opts.side_key or "modem_side"
+    local current = state[side_key]
+    if current and rednet.isOpen(current) then
+        return current
+    end
+
+    local configured = opts.configured_side
+    if configured then
+        if peripheral.getType(configured) == "modem" then
+            local ok, err = pcall(rednet.open, configured)
             if not ok then
-                print("Alarm modem open failed on " .. tostring(CLIENT_MODEM_SIDE) .. ": " .. tostring(err))
+                print(opts.label .. " modem open failed on " .. tostring(configured) .. ": " .. tostring(err))
             end
-            if rednet.isOpen(CLIENT_MODEM_SIDE) then
-                MODEM_STATE.side = CLIENT_MODEM_SIDE
-                MODEM_STATE.warned_missing = false
-                return CLIENT_MODEM_SIDE
+            if rednet.isOpen(configured) then
+                state[side_key] = configured
+                state.warned_missing = false
+                return configured
             end
-        elseif not MODEM_STATE.warned_config then
-            print("Configured alarm modem side not found: " .. tostring(CLIENT_MODEM_SIDE))
-            MODEM_STATE.warned_config = true
+        elseif not state.warned_config then
+            print("Configured " .. tostring(opts.config_label) .. " not found: " .. tostring(configured))
+            state.warned_config = true
         end
     end
 
@@ -116,23 +125,34 @@ local function open_alarm_modem()
         if peripheral.getType(name) == "modem" then
             local ok, err = pcall(rednet.open, name)
             if not ok then
-                print("Alarm modem open failed on " .. tostring(name) .. ": " .. tostring(err))
+                print(opts.label .. " modem open failed on " .. tostring(name) .. ": " .. tostring(err))
             end
             if rednet.isOpen(name) then
-                MODEM_STATE.side = name
-                MODEM_STATE.warned_config = false
-                MODEM_STATE.warned_missing = false
+                state[side_key] = name
+                state.warned_config = false
+                state.warned_missing = false
                 return name
             end
         end
     end
 
-    if not MODEM_STATE.warned_missing then
-        print("No modem available for alarm rednet")
-        MODEM_STATE.warned_missing = true
+    if opts.missing_message and not state.warned_missing then
+        print(opts.missing_message)
+        state.warned_missing = true
     end
-    MODEM_STATE.side = nil
+    state[side_key] = nil
     return nil
+end
+
+local function open_alarm_modem()
+    return open_named_modem({
+        state = MODEM_STATE,
+        side_key = "side",
+        label = "Alarm",
+        configured_side = CLIENT_MODEM_SIDE,
+        config_label = "alarm modem side",
+        missing_message = "No modem available for alarm rednet",
+    })
 end
 
 local function clear_phase_outputs()

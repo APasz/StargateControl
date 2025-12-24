@@ -4,6 +4,7 @@ function M.init(ctx)
     local SG_UTILS = ctx.utils
     local SG_SETTINGS = ctx.settings
     local STATE = ctx.state
+    local LOCAL_SITE = ctx.local_site
     local FEEDBACK_BLACKLIST_TYPES = ctx.feedback_blacklist_types or {}
     local FEEDBACK_BLACKLIST_CODES = ctx.feedback_blacklist_codes or {}
 
@@ -214,6 +215,73 @@ function M.init(ctx)
         end
     end
 
+    local function iris_site_matches(payload)
+        if not LOCAL_SITE then
+            return true
+        end
+        local _, remote_site = SG_UTILS.normalise_name(payload.site)
+        return remote_site and remote_site == LOCAL_SITE
+    end
+
+    local function apply_iris_command(command)
+        local gate = SG_UTILS.get_inf_gate(false)
+        if not gate then
+            return
+        end
+
+        if type(gate.hasIris) == "function" and gate.hasIris() ~= true then
+            return
+        end
+
+        if command == "open" then
+            if type(gate.openIris) == "function" then
+                pcall(gate.openIris)
+            elseif type(gate.setIrisOpen) == "function" then
+                pcall(gate.setIrisOpen, true)
+            elseif type(gate.setIrisState) == "function" then
+                pcall(gate.setIrisState, true)
+            end
+        elseif command == "close" then
+            if type(gate.closeIris) == "function" then
+                pcall(gate.closeIris)
+            elseif type(gate.setIrisOpen) == "function" then
+                pcall(gate.setIrisOpen, false)
+            elseif type(gate.setIrisState) == "function" then
+                pcall(gate.setIrisState, false)
+            end
+        elseif command == "toggle" then
+            if type(gate.toggleIris) == "function" then
+                pcall(gate.toggleIris)
+            end
+        end
+    end
+
+    local function handle_rednet_message(sender, payload, protocol)
+        local iris_protocol = ctx.iris_protocol
+        if iris_protocol == false or iris_protocol == "" then
+            return
+        end
+        if iris_protocol and protocol ~= iris_protocol then
+            return
+        end
+        if type(payload) ~= "table" or payload.type ~= "iris" then
+            return
+        end
+        if not iris_site_matches(payload) then
+            return
+        end
+
+        local command = payload.command
+        if type(command) ~= "string" then
+            return
+        end
+        command = string.lower(command)
+        if command ~= "open" and command ~= "close" and command ~= "toggle" then
+            return
+        end
+        apply_iris_command(command)
+    end
+
     local function stargate_chevron_engaged(p2, count, engaged, incoming, symbol)
         if incoming then
             if STATE.outbound ~= true and ctx.send_alarm_update then
@@ -322,6 +390,7 @@ function M.init(ctx)
         stargate_reconstructing_entity = stargate_reconstructing_entity,
         stargate_message = stargate_message_received,
         stargate_message_received = stargate_message_received,
+        rednet_message = handle_rednet_message,
         timer = handle_timer_event,
         redstone = handle_redstone_event,
         terminate = handle_terminate,

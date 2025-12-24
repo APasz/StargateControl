@@ -10,6 +10,8 @@ local DEFAULT_SETTINGS_CONTENT = [[return {
     -- optional site name to filter energy updates (falls back to computer label suffix)
     protocol = "sg_aux",
     -- optional rednet protocol filter; nil listens to any protocol
+    iris_protocol = "sg_iris",
+    -- rednet protocol used to send iris control requests
     monitor_scale = 1,
     -- monitor text scale
     receive_timeout = 5,
@@ -64,6 +66,8 @@ local STATE = {
     current_limit = nil,
     manual_limit = nil,
     last_transfer_rate = nil,
+    warned_config = false,
+    warned_missing = false,
 }
 
 local monitor_scale = tonumber(AUX_SETTINGS.monitor_scale) or 0.5
@@ -75,8 +79,9 @@ if listen_timeout < 0 then
     listen_timeout = 0
 end
 local protocol_filter = AUX_SETTINGS.protocol
+local iris_protocol = AUX_SETTINGS.iris_protocol or "sg_iris"
 
-local warned_config_modem = false
+local open_modem
 
 local PLAYER_LIMIT = 70000
 local MAX_LIMIT = 999999999
@@ -84,11 +89,16 @@ local MANUAL_STEP = 10000
 local TRANSFER_LINE = 5
 local BUTTON_LINE = 6
 local LIMIT_LINE = 7
+local IRIS_BUTTON_LINE = 8
 local BUTTONS = {
     { key = "dec", label = "-10k" },
     { key = "inc", label = "+10k" },
     { key = "max", label = "max" },
     { key = "reset", label = "reset" },
+}
+local IRIS_BUTTONS = {
+    { key = "iris_open", label = "open" },
+    { key = "iris_close", label = "close" },
 }
 local button_bounds = {}
 
@@ -198,31 +208,39 @@ local function apply_auto_limit(force)
     set_transfer_limit(compute_auto_limit())
 end
 
-local function render_buttons()
+local function render_button_row(buttons, line, opts)
     local labels = {}
-    for _, btn in ipairs(BUTTONS) do
+    for _, btn in ipairs(buttons) do
         labels[#labels + 1] = "[" .. btn.label .. "]"
     end
 
-    local buttons_text = table.concat(labels, " ")
+    local prefix = opts and opts.prefix or ""
+    local prefix_text = prefix ~= "" and (prefix .. " ") or ""
+
+    local buttons_text = prefix_text .. table.concat(labels, " ")
     local width = select(1, SG_UTILS.get_monitor_size())
     if width < #buttons_text then
-        SG_UTILS.update_line("Controls unavailable", BUTTON_LINE)
-        button_bounds = {}
+        SG_UTILS.update_line((opts and opts.unavailable) or "Controls unavailable", line)
+        button_bounds[line] = {}
         return
     end
 
-    SG_UTILS.update_line(buttons_text, BUTTON_LINE)
+    SG_UTILS.update_line(buttons_text, line)
 
-    button_bounds = {}
-    local cursor = 1
-    for _, btn in ipairs(BUTTONS) do
+    button_bounds[line] = {}
+    local cursor = #prefix_text + 1
+    for _, btn in ipairs(buttons) do
         local label = "[" .. btn.label .. "]"
         local start_x = cursor
         local end_x = cursor + #label - 1
-        button_bounds[btn.key] = { start_x = start_x, end_x = end_x }
+        button_bounds[line][btn.key] = { start_x = start_x, end_x = end_x }
         cursor = end_x + 2
     end
+end
+
+local function render_buttons()
+    render_button_row(BUTTONS, BUTTON_LINE)
+    render_button_row(IRIS_BUTTONS, IRIS_BUTTON_LINE, { prefix = "Iris:" })
 end
 
 local function reset_limit()
@@ -236,6 +254,24 @@ local function adjust_manual_limit(delta)
     set_transfer_limit(new_limit, { manual = true })
 end
 
+local function send_iris_command(command)
+    local modem_side = open_modem()
+    if not modem_side then
+        print("No modem available for iris control")
+        return
+    end
+
+    local payload = {
+        type = "iris",
+        command = command,
+        site = LOCAL_SITE,
+    }
+    local ok, err = pcall(rednet.broadcast, payload, iris_protocol)
+    if not ok then
+        print("Failed to send iris command: " .. tostring(err))
+    end
+end
+
 local function handle_button_press(action)
     if action == "dec" then
         adjust_manual_limit(-MANUAL_STEP)
@@ -245,15 +281,25 @@ local function handle_button_press(action)
         set_transfer_limit(MAX_LIMIT, { manual = true })
     elseif action == "reset" then
         reset_limit()
+    elseif action == "iris_open" then
+        send_iris_command("open")
+    elseif action == "iris_close" then
+        send_iris_command("close")
     end
 end
 
 local function handle_monitor_touch(x, y)
-    if not (x and y) or math.floor(y) ~= BUTTON_LINE then
+    if not (x and y) then
         return
     end
 
-    for action, bounds in pairs(button_bounds) do
+    local line = math.floor(y)
+    local bounds_for_line = button_bounds[line]
+    if not bounds_for_line then
+        return
+    end
+
+    for action, bounds in pairs(bounds_for_line) do
         if x >= bounds.start_x and x <= bounds.end_x then
             handle_button_press(action)
             return
@@ -261,24 +307,42 @@ local function handle_monitor_touch(x, y)
     end
 end
 
-local function open_modem()
-    if STATE.modem_side and rednet.isOpen(STATE.modem_side) then
-        return STATE.modem_side
+local function open_named_modem(opts)
+    if not opts or not opts.state then
+        return nil
     end
 
-    if CLIENT_MODEM_SIDE then
-        if peripheral.getType(CLIENT_MODEM_SIDE) == "modem" then
-            local ok, err = pcall(rednet.open, CLIENT_MODEM_SIDE)
+    local state = opts.state
+    local side_key = opts.side_key or "modem_side"
+    local current = state[side_key]
+    if current and rednet.isOpen(current) then
+        return current
+    end
+
+    local function log_open_failed(side, err)
+        if opts.open_failed_prefix then
+            print(opts.open_failed_prefix .. " " .. tostring(side) .. ": " .. tostring(err))
+        else
+            print(opts.label .. " modem open failed on " .. tostring(side) .. ": " .. tostring(err))
+        end
+    end
+
+    local configured = opts.configured_side
+    if configured then
+        if peripheral.getType(configured) == "modem" then
+            local ok, err = pcall(rednet.open, configured)
             if not ok then
-                print("Failed to open modem on " .. CLIENT_MODEM_SIDE .. ": " .. tostring(err))
+                log_open_failed(configured, err)
             end
-            if rednet.isOpen(CLIENT_MODEM_SIDE) then
-                STATE.modem_side = CLIENT_MODEM_SIDE
-                return CLIENT_MODEM_SIDE
+            if rednet.isOpen(configured) then
+                state[side_key] = configured
+                state.warned_missing = false
+                state.warned_config = false
+                return configured
             end
-        elseif not warned_config_modem then
-            print("Configured modem side not found: " .. tostring(CLIENT_MODEM_SIDE))
-            warned_config_modem = true
+        elseif not state.warned_config then
+            print("Configured " .. tostring(opts.config_label) .. " not found: " .. tostring(configured))
+            state.warned_config = true
         end
     end
 
@@ -286,18 +350,33 @@ local function open_modem()
         if peripheral.getType(name) == "modem" then
             local ok, err = pcall(rednet.open, name)
             if not ok then
-                print("Failed to open modem on " .. tostring(name) .. ": " .. tostring(err))
+                log_open_failed(name, err)
             end
             if rednet.isOpen(name) then
-                STATE.modem_side = name
-                warned_config_modem = false
+                state[side_key] = name
+                state.warned_config = false
+                state.warned_missing = false
                 return name
             end
         end
     end
 
-    STATE.modem_side = nil
+    if opts.missing_message and not state.warned_missing then
+        print(opts.missing_message)
+        state.warned_missing = true
+    end
+    state[side_key] = nil
     return nil
+end
+
+open_modem = function()
+    return open_named_modem({
+        state = STATE,
+        side_key = "modem_side",
+        configured_side = CLIENT_MODEM_SIDE,
+        config_label = "modem side",
+        open_failed_prefix = "Failed to open modem on",
+    })
 end
 
 local function render_no_modem()

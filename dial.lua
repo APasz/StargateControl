@@ -25,6 +25,8 @@ local DEFAULT_SETTINGS_CONTENT = [[return {
     -- side with modem to broadcast energy (nil auto-detects)
     energy_protocol = "sg_aux",
     -- rednet protocol used when sending energy updates
+    iris_protocol = "sg_iris",
+    -- rednet protocol used when receiving iris control requests
 }
 ]]
 
@@ -110,6 +112,12 @@ local ENERGY_STATE = {
     warned_missing = false,
 }
 local ENERGY_PROTOCOL = SG_SETTINGS.energy_protocol or "sg_aux"
+local IRIS_STATE = {
+    modem_side = nil,
+    warned_config = false,
+    warned_missing = false,
+}
+local IRIS_PROTOCOL = SG_SETTINGS.iris_protocol or "sg_iris"
 
 local CANCEL_EVENT_BLACKLIST = {
     redstone = true,
@@ -135,6 +143,8 @@ local ctx = {
     alarm_protocol = ALARM_PROTOCOL,
     energy_state = ENERGY_STATE,
     energy_protocol = ENERGY_PROTOCOL,
+    iris_state = IRIS_STATE,
+    iris_protocol = IRIS_PROTOCOL,
     client_modem_side = CLIENT_MODEM_SIDE,
     timer_schedule = TIMER_SCHEDULE,
     tick_interval = TICK_INTERVAL,
@@ -192,6 +202,9 @@ local function main_loop()
     end
     if schedule_tick then
         schedule_tick(0)
+    end
+    if ctx.open_iris_modem then
+        ctx.open_iris_modem()
     end
     while true do
         local event = { os.pullEventRaw() }

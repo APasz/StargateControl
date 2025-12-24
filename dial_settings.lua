@@ -21,4 +21,6 @@ return {
     -- side with modem to broadcast energy (nil auto-detects)
     energy_protocol = "sg_aux",
     -- rednet protocol used when sending energy updates
+    iris_protocol = "sg_iris",
+    -- rednet protocol used when receiving iris control requests
 }

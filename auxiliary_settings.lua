@@ -3,6 +3,8 @@ return {
     -- optional site name to filter energy updates (falls back to computer label suffix)
     protocol = "sg_aux",
     -- optional rednet protocol filter; nil listens to any protocol
+    iris_protocol = "sg_iris",
+    -- rednet protocol used to send iris control requests
     monitor_scale = 1,
     -- monitor text scale
     receive_timeout = 5,

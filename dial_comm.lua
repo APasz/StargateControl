@@ -10,6 +10,7 @@ function M.init(ctx)
     local CLIENT_MODEM_SIDE = ctx.client_modem_side
     local ALARM_STATE = ctx.alarm_state
     local ENERGY_STATE = ctx.energy_state
+    local IRIS_STATE = ctx.iris_state
     local ALARM_PROTOCOL = ctx.alarm_protocol
     local ENERGY_PROTOCOL = ctx.energy_protocol
     local INF_GATE = ctx.inf_gate
@@ -103,71 +104,31 @@ function M.init(ctx)
         }
     end
 
-    local function open_alarm_modem()
-        if ALARM_STATE.modem_side and rednet.isOpen(ALARM_STATE.modem_side) then
-            return ALARM_STATE.modem_side
+    local function open_named_modem(opts)
+        if not opts or not opts.state then
+            return nil
         end
 
-        if CLIENT_MODEM_SIDE then
-            if peripheral.getType(CLIENT_MODEM_SIDE) == "modem" then
-                local ok, err = pcall(rednet.open, CLIENT_MODEM_SIDE)
-                if not ok then
-                    print("Alarm modem open failed on " .. tostring(CLIENT_MODEM_SIDE) .. ": " .. tostring(err))
-                end
-                if rednet.isOpen(CLIENT_MODEM_SIDE) then
-                    ALARM_STATE.modem_side = CLIENT_MODEM_SIDE
-                    ALARM_STATE.warned_missing = false
-                    return CLIENT_MODEM_SIDE
-                end
-            elseif not ALARM_STATE.warned_config then
-                print("Configured alarm modem side not found: " .. tostring(CLIENT_MODEM_SIDE))
-                ALARM_STATE.warned_config = true
-            end
+        local state = opts.state
+        if state.modem_side and rednet.isOpen(state.modem_side) then
+            return state.modem_side
         end
 
-        for _, name in ipairs(peripheral.getNames()) do
-            if peripheral.getType(name) == "modem" then
-                local ok, err = pcall(rednet.open, name)
-                if not ok then
-                    print("Alarm modem open failed on " .. tostring(name) .. ": " .. tostring(err))
-                end
-                if rednet.isOpen(name) then
-                    ALARM_STATE.modem_side = name
-                    ALARM_STATE.warned_config = false
-                    ALARM_STATE.warned_missing = false
-                    return name
-                end
-            end
-        end
-
-        if not ALARM_STATE.warned_missing then
-            print("No modem available for alarm broadcast")
-            ALARM_STATE.warned_missing = true
-        end
-        ALARM_STATE.modem_side = nil
-        return nil
-    end
-
-    local function open_energy_modem()
-        if ENERGY_STATE.modem_side and rednet.isOpen(ENERGY_STATE.modem_side) then
-            return ENERGY_STATE.modem_side
-        end
-
-        local configured = SG_SETTINGS.energy_modem_side
+        local configured = opts.configured_side
         if configured then
             if peripheral.getType(configured) == "modem" then
                 local ok, err = pcall(rednet.open, configured)
                 if not ok then
-                    print("Energy modem open failed on " .. tostring(configured) .. ": " .. tostring(err))
+                    print(opts.label .. " modem open failed on " .. tostring(configured) .. ": " .. tostring(err))
                 end
                 if rednet.isOpen(configured) then
-                    ENERGY_STATE.modem_side = configured
-                    ENERGY_STATE.warned_missing = false
+                    state.modem_side = configured
+                    state.warned_missing = false
                     return configured
                 end
-            elseif not ENERGY_STATE.warned_config then
-                print("Configured energy_modem_side not found: " .. tostring(configured))
-                ENERGY_STATE.warned_config = true
+            elseif not state.warned_config then
+                print("Configured " .. tostring(opts.config_label) .. " not found: " .. tostring(configured))
+                state.warned_config = true
             end
         end
 
@@ -175,23 +136,56 @@ function M.init(ctx)
             if peripheral.getType(name) == "modem" then
                 local ok, err = pcall(rednet.open, name)
                 if not ok then
-                    print("Energy modem open failed on " .. tostring(name) .. ": " .. tostring(err))
+                    print(opts.label .. " modem open failed on " .. tostring(name) .. ": " .. tostring(err))
                 end
                 if rednet.isOpen(name) then
-                    ENERGY_STATE.modem_side = name
-                    ENERGY_STATE.warned_config = false
-                    ENERGY_STATE.warned_missing = false
+                    state.modem_side = name
+                    state.warned_config = false
+                    state.warned_missing = false
                     return name
                 end
             end
         end
 
-        if not ENERGY_STATE.warned_missing then
-            print("No modem available for energy broadcast")
-            ENERGY_STATE.warned_missing = true
+        if not state.warned_missing then
+            print(opts.missing_message)
+            state.warned_missing = true
         end
-        ENERGY_STATE.modem_side = nil
+        state.modem_side = nil
         return nil
+    end
+
+    local function open_alarm_modem()
+        return open_named_modem({
+            state = ALARM_STATE,
+            label = "Alarm",
+            configured_side = CLIENT_MODEM_SIDE,
+            config_label = "alarm modem side",
+            missing_message = "No modem available for alarm broadcast",
+        })
+    end
+
+    local function open_energy_modem()
+        return open_named_modem({
+            state = ENERGY_STATE,
+            label = "Energy",
+            configured_side = SG_SETTINGS.energy_modem_side,
+            config_label = "energy_modem_side",
+            missing_message = "No modem available for energy broadcast",
+        })
+    end
+
+    local function open_iris_modem()
+        if not IRIS_STATE then
+            return nil
+        end
+        return open_named_modem({
+            state = IRIS_STATE,
+            label = "Iris",
+            configured_side = CLIENT_MODEM_SIDE,
+            config_label = "iris modem side",
+            missing_message = "No modem available for iris control",
+        })
     end
 
     local function send_energy_update()
@@ -252,6 +246,7 @@ function M.init(ctx)
     ctx.show_remote_env_status = show_remote_env_status
     ctx.send_energy_update = send_energy_update
     ctx.send_alarm_update = send_alarm_update
+    ctx.open_iris_modem = open_iris_modem
 end
 
 return M
