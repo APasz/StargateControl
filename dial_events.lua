@@ -229,30 +229,42 @@ function M.init(ctx)
             return
         end
 
-        if type(gate.hasIris) == "function" and gate.hasIris() ~= true then
-            return
+        local iris_id = nil
+        if type(gate.getIris) == "function" then
+            local ok, value = pcall(gate.getIris)
+            if ok then
+                iris_id = value
+                if iris_id == nil then
+                    return
+                end
+            end
         end
 
-        if command == "open" then
-            if type(gate.openIris) == "function" then
-                pcall(gate.openIris)
-            elseif type(gate.setIrisOpen) == "function" then
-                pcall(gate.setIrisOpen, true)
-            elseif type(gate.setIrisState) == "function" then
-                pcall(gate.setIrisState, true)
+        local function call_method(target, method)
+            if type(target[method]) ~= "function" then
+                return false
             end
-        elseif command == "close" then
-            if type(gate.closeIris) == "function" then
-                pcall(gate.closeIris)
-            elseif type(gate.setIrisOpen) == "function" then
-                pcall(gate.setIrisOpen, false)
-            elseif type(gate.setIrisState) == "function" then
-                pcall(gate.setIrisState, false)
+            local ok, result = pcall(target[method])
+            if not ok then
+                return false
             end
-        elseif command == "toggle" then
-            if type(gate.toggleIris) == "function" then
-                pcall(gate.toggleIris)
+            if result == false then
+                return false
             end
+            return true
+        end
+
+        local function apply_to_gate()
+            if command == "open" then
+                return call_method(gate, "openIris")
+            elseif command == "close" then
+                return call_method(gate, "closeIris")
+            end
+            return false
+        end
+
+        if apply_to_gate() then
+            return
         end
     end
 

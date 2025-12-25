@@ -198,7 +198,7 @@ local function main_loop()
         end
     end
     if start_timer then
-        start_timer("energy", 1)
+        start_timer("energy", 0.5)
     end
     if schedule_tick then
         schedule_tick(0)

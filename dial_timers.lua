@@ -124,7 +124,7 @@ function M.init(ctx)
             if ctx.send_energy_update then
                 ctx.send_energy_update()
             end
-            start_timer("energy", 1)
+            start_timer("energy", 0.5)
             return
         end
 

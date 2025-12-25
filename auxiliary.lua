@@ -273,7 +273,7 @@ local function send_iris_command(command)
     local modem_side = open_modem()
     if not modem_side then
         print("No modem available for iris control")
-        return
+        return false
     end
 
     local payload = {
@@ -284,7 +284,9 @@ local function send_iris_command(command)
     local ok, err = pcall(rednet.broadcast, payload, iris_protocol)
     if not ok then
         print("Failed to send iris command: " .. tostring(err))
+        return false
     end
+    return true
 end
 
 local function handle_button_press(action)
@@ -297,11 +299,20 @@ local function handle_button_press(action)
     elseif action == "reset" then
         reset_limit()
     elseif action == "iris_open" then
-        send_iris_command("open")
+        if send_iris_command("open") then
+            STATE.iris_state = "moving"
+            render_buttons()
+        end
     elseif action == "iris_close" then
-        send_iris_command("close")
+        if send_iris_command("close") then
+            STATE.iris_state = "moving"
+            render_buttons()
+        end
     elseif action == "iris_toggle" then
-        send_iris_command("toggle")
+        if send_iris_command("toggle") then
+            STATE.iris_state = "moving"
+            render_buttons()
+        end
     end
 end
 
