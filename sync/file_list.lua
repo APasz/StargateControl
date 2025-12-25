@@ -17,16 +17,16 @@ return {
         { filename = "settings.lua", git = "alarm_settings.lua", override=false, disk = "disk2" },
     },
     auxiliary = {
-        { filename = "auxiliary.lua", git = "auxiliary.lua", override=true },
-        { filename = "settings.lua", git = "auxiliary_settings.lua", override=false },
+        { filename = "auxiliary.lua", git = "auxiliary.lua", override=true, disk = "disk2" },
+        { filename = "settings.lua", git = "auxiliary_settings.lua", override=false, disk = "disk2" },
     },
     reactor = {
         { filename = "reactor.lua", git = "reactor.lua", override=true, disk = "disk2" },
         { filename = "settings.lua", git = "reactor_settings.lua", override=false, disk = "disk2" },
     },
     server = {
-        { filename = "server.lua", git = "sync/server.lua", override=true, disk = "disk2" },
-        { filename = "updater.lua", git = "sync/updater.lua", override=true, disk = "disk2" },
+        { filename = "server.lua", git = "sync/server.lua", override=true },
+        { filename = "updater.lua", git = "sync/updater.lua", override=true },
     },
     shared = {
         { filename = "utils.lua", git = "utils.lua", override=true, disk = "disk2" },
