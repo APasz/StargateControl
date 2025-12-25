@@ -1,6 +1,6 @@
 return {
     manifest = {
-        { filename = "file_list.lua", git = "sync/file_list.lua", override=true },
+        { filename = "file_list.lua", git = "sync/file_list.lua", override=true }, -- must be on disk
     },
     dialing = {
         { filename = "dial.lua", git = "dial.lua", override=true },
@@ -25,8 +25,8 @@ return {
         { filename = "settings.lua", git = "reactor_settings.lua", override=false, disk = "disk2" },
     },
     server = {
-        { filename = "server.lua", git = "sync/server.lua", override=true },
-        { filename = "updater.lua", git = "sync/updater.lua", override=true },
+        { filename = "server.lua", git = "sync/server.lua", override=true }, -- must be on disk
+        { filename = "updater.lua", git = "sync/updater.lua", override=true }, -- must be on disk 
     },
     shared = {
         { filename = "utils.lua", git = "utils.lua", override=true, disk = "disk2" },
