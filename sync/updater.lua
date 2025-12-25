@@ -77,6 +77,34 @@ local function load_file_list()
     return result
 end
 
+local function drive_label_for(path, fallback)
+    local drive = fs.getDrive(path)
+    if drive and drive ~= "" then
+        return drive
+    end
+    return fallback or path
+end
+
+local function has_space_for_write(target_path, content_size, drive_label)
+    local existing_size = 0
+    if fs.exists(target_path) and not fs.isDir(target_path) then
+        existing_size = fs.getSize(target_path)
+    end
+
+    local needed = content_size - existing_size
+    if needed < 0 then
+        needed = 0
+    end
+
+    local free_space = fs.getFreeSpace(target_path)
+    if free_space and needed > free_space then
+        print(("Failed; %s: disk '%s' is full (need %d, free %d)"):format(target_path, drive_label, needed, free_space))
+        return false
+    end
+
+    return true
+end
+
 local function download_file(path, destination, target_dir)
     local url = BASE_URL .. path
     local content, err = download(url)
@@ -87,18 +115,40 @@ local function download_file(path, destination, target_dir)
 
     local base_dir = target_dir or DEFAULT_TARGET_DIR
     local target_path = destination or fs.combine(base_dir, path)
+    local drive_label = drive_label_for(target_path, base_dir)
     local dir = fs.getDir(target_path)
     if dir and dir ~= "" then
-        fs.makeDir(dir)
+        local ok, mk_err = pcall(fs.makeDir, dir)
+        if not ok then
+            print(("Failed to create %s on disk '%s': %s"):format(dir, drive_label, tostring(mk_err)))
+            return false
+        end
     end
 
-    local f = fs.open(target_path, "w")
-    if not f then
-        print("Failed to open " .. target_path .. " for writing.")
+    if not has_space_for_write(target_path, #content, drive_label) then
         return false
     end
-    f.write(content)
+
+    local f, open_err = fs.open(target_path, "w")
+    if not f then
+        local suffix = open_err and (": " .. tostring(open_err)) or "."
+        print(("Failed to open %s for writing (disk '%s')%s"):format(target_path, drive_label, suffix))
+        return false
+    end
+
+    local ok, write_err = pcall(function()
+        f.write(content)
+    end)
     f.close()
+    if not ok then
+        local err_text = tostring(write_err)
+        if err_text:lower():find("space", 1, true) then
+            print(("Failed; %s: disk '%s' is full."):format(target_path, drive_label))
+        else
+            print(("Failed to write %s on disk '%s': %s"):format(target_path, drive_label, err_text))
+        end
+        return false
+    end
 
     print("Saved: " .. target_path)
     return true

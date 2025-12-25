@@ -25,8 +25,8 @@ return {
         { filename = "settings.lua", git = "reactor_settings.lua", override=false, disk = "disk2" },
     },
     server = {
-        { filename = "server.lua", git = "sync/server.lua", override=true },
-        { filename = "updater.lua", git = "sync/updater.lua", override=true },
+        { filename = "server.lua", git = "sync/server.lua", override=true, disk = "disk2" },
+        { filename = "updater.lua", git = "sync/updater.lua", override=true, disk = "disk2" },
     },
     shared = {
         { filename = "utils.lua", git = "utils.lua", override=true, disk = "disk2" },
