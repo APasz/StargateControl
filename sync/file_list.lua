@@ -13,8 +13,8 @@ return {
         { filename = "settings.lua", git = "dial_settings.lua", override=false },
     },
     alarming = {
-        { filename = "alarm.lua", git = "alarm.lua", override=true },
-        { filename = "settings.lua", git = "alarm_settings.lua", override=false },
+        { filename = "alarm.lua", git = "alarm.lua", override=true, disk = "disk2" },
+        { filename = "settings.lua", git = "alarm_settings.lua", override=false, disk = "disk2" },
     },
     auxiliary = {
         { filename = "auxiliary.lua", git = "auxiliary.lua", override=true },
