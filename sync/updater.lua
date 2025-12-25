@@ -77,6 +77,82 @@ local function load_file_list()
     return result
 end
 
+local function add_expected_file(expected, base_dir, path)
+    local base = base_dir or DEFAULT_TARGET_DIR
+    local list = expected[base]
+    if not list then
+        list = {}
+        expected[base] = list
+    end
+    list[path] = true
+end
+
+local function build_expected_files(file_list)
+    local expected = {}
+
+    add_expected_file(expected, DEFAULT_TARGET_DIR, FILE_LIST_PATH)
+    for _, scope_files in pairs(file_list) do
+        for _, file in ipairs(scope_files) do
+            add_expected_file(expected, file.disk, file.git)
+        end
+    end
+
+    return expected
+end
+
+local function collect_disk_files(base_dir)
+    local files = {}
+
+    local function scan(rel_path)
+        local full_path = rel_path == "" and base_dir or fs.combine(base_dir, rel_path)
+        for _, name in ipairs(fs.list(full_path)) do
+            local child_rel = rel_path == "" and name or fs.combine(rel_path, name)
+            local child_full = fs.combine(base_dir, child_rel)
+            if fs.isDir(child_full) then
+                scan(child_rel)
+            else
+                files[#files + 1] = child_rel
+            end
+        end
+    end
+
+    if fs.exists(base_dir) and fs.isDir(base_dir) then
+        scan("")
+    end
+
+    return files
+end
+
+local function clean_disk(base_dir, expected)
+    local removed = 0
+    local files = collect_disk_files(base_dir)
+
+    for _, rel_path in ipairs(files) do
+        if not expected[rel_path] then
+            local full_path = fs.combine(base_dir, rel_path)
+            local ok, err = pcall(fs.delete, full_path)
+            if ok then
+                print("Removed: " .. full_path)
+                removed = removed + 1
+            else
+                print(("Failed to remove %s: %s"):format(full_path, tostring(err)))
+            end
+        end
+    end
+
+    return removed
+end
+
+local function clean_disks(expected)
+    local removed_total = 0
+    for base_dir, allowed in pairs(expected) do
+        removed_total = removed_total + clean_disk(base_dir, allowed)
+    end
+    if removed_total > 0 then
+        print(("Cleanup removed %d file(s)."):format(removed_total))
+    end
+end
+
 local function drive_label_for(path, fallback)
     local drive = fs.getDrive(path)
     if drive and drive ~= "" then
@@ -221,6 +297,7 @@ else
     local file_list = load_file_list()
     local files = collect_files(file_list)
     validate_target_dirs(files)
+    clean_disks(build_expected_files(file_list))
     success = download_file(FILE_LIST_PATH, nil, DEFAULT_TARGET_DIR) and success
     success = download_files(files) and success
 end
