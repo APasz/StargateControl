@@ -104,6 +104,42 @@ function M.init(ctx)
         }
     end
 
+    local function get_iris_state()
+        if not INF_GATE then
+            return nil
+        end
+
+        if type(INF_GATE.getIris) == "function" then
+            local ok, iris_id = pcall(INF_GATE.getIris)
+            if ok and iris_id == nil then
+                return "missing"
+            end
+        end
+
+        local open = nil
+        if type(INF_GATE.getIrisProgressPercentage) == "function" then
+            local ok, value = pcall(INF_GATE.getIrisProgressPercentage)
+            if ok then
+                local percent = tonumber(value)
+                if percent == 0 then
+                    open = true
+                elseif percent == 100 then
+                    open = false
+                elseif percent and percent > 0 and percent < 100 then
+                    return "moving"
+                end
+            end
+        end
+
+        if open == true then
+            return "open"
+        end
+        if open == false then
+            return "closed"
+        end
+        return "unknown"
+    end
+
     local function open_named_modem(opts)
         if not opts or not opts.state then
             return nil
@@ -192,6 +228,11 @@ function M.init(ctx)
         local data = get_gate_energy()
         if not data then
             return
+        end
+
+        local iris_state = get_iris_state()
+        if iris_state then
+            data.iris_state = iris_state
         end
 
         local modem = open_energy_modem()

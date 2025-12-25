@@ -68,6 +68,7 @@ local STATE = {
     last_transfer_rate = nil,
     warned_config = false,
     warned_missing = false,
+    iris_state = nil,
 }
 
 local monitor_scale = tonumber(AUX_SETTINGS.monitor_scale) or 0.5
@@ -95,10 +96,6 @@ local BUTTONS = {
     { key = "inc", label = "+10k" },
     { key = "max", label = "max" },
     { key = "reset", label = "reset" },
-}
-local IRIS_BUTTONS = {
-    { key = "iris_open", label = "open" },
-    { key = "iris_close", label = "close" },
 }
 local button_bounds = {}
 
@@ -233,14 +230,32 @@ local function render_button_row(buttons, line, opts)
         local label = "[" .. btn.label .. "]"
         local start_x = cursor
         local end_x = cursor + #label - 1
-        button_bounds[line][btn.key] = { start_x = start_x, end_x = end_x }
+        if btn.key then
+            button_bounds[line][btn.key] = { start_x = start_x, end_x = end_x }
+        end
         cursor = end_x + 2
     end
 end
 
+local function get_iris_button()
+    if STATE.iris_state == "missing" then
+        return { label = "no iris" }
+    end
+    if STATE.iris_state == "moving" then
+        return { label = "moving" }
+    end
+    if STATE.iris_state == "open" then
+        return { key = "iris_close", label = "close" }
+    end
+    if STATE.iris_state == "closed" then
+        return { key = "iris_open", label = "open" }
+    end
+    return { key = "iris_toggle", label = "toggle" }
+end
+
 local function render_buttons()
     render_button_row(BUTTONS, BUTTON_LINE)
-    render_button_row(IRIS_BUTTONS, IRIS_BUTTON_LINE, { prefix = "Iris:" })
+    render_button_row({ get_iris_button() }, IRIS_BUTTON_LINE, { prefix = "Iris:" })
 end
 
 local function reset_limit()
@@ -285,6 +300,8 @@ local function handle_button_press(action)
         send_iris_command("open")
     elseif action == "iris_close" then
         send_iris_command("close")
+    elseif action == "iris_toggle" then
+        send_iris_command("toggle")
     end
 end
 
@@ -430,6 +447,18 @@ local function render_message(modem_side, sender, protocol, payload)
     inf_target = tonumber(payload.inf_target)
     trans_rate = tonumber(energy.getTransferRate())
     STATE.last_transfer_rate = trans_rate
+
+    if type(payload.iris_state) == "string" then
+        local iris_state = string.lower(payload.iris_state)
+        if iris_state == "open"
+            or iris_state == "closed"
+            or iris_state == "missing"
+            or iris_state == "moving"
+            or iris_state == "unknown"
+        then
+            STATE.iris_state = iris_state
+        end
+    end
 
     if sg_energy ~= nil then
         SG_UTILS.update_line("Stargate Energy: " .. (format_energy(sg_energy) or tostring(sg_energy)), 1)
